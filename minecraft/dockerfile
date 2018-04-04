@@ -1,0 +1,7 @@
+FROM mcs:v2
+
+COPY minecraft_shell.py /
+
+CMD ["python3","/minecraft_shell.py"]
+
+EXPOSE 25565/tcp
