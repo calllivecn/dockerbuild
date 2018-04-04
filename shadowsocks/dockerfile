@@ -1,20 +1,18 @@
-FROM alpine_py3
+FROM alpine_py3:latest
 
 MAINTAINER ZhangXu <c-all@qq.com>
 
-
-RUN echo 'http://dl-cdn.alpinelinux.org/alpine/edge/testing' >> /etc/apk/repositories \
+RUN echo "http://mirrors.ustc.edu.cn/alpine/edge/testing" >> /etc/apk/repositories \
 && apk update \
 && apk add polipo \
-&& pip3 install shadowsocks \
-&& rm  /var/cache/apk/*
+&& pip3 install shadowsocks
 
 ENV CONFIG SERVER_ADDR SERVER_PORT LOCAL_ADDR LOCAL_PORT PASSWORD METHOD FAST_OPEN POLIPO
 
 COPY shadowsocks.sh /
 
-CMD ["busybox","ash","/shadowsocks.sh"]
+CMD ["ash","/shadowsocks.sh"]
 
-WORKDIR ["/"]
+WORKDIR /
 
 EXPOSE 1080 1080/udp 8123

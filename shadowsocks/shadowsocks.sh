@@ -1,5 +1,6 @@
-
-
+#!/bin/bash
+# date 2018-04-04 22:44:10
+# author calllivecn <c-all@qq.com>
 
 using(){
 

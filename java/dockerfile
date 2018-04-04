@@ -1,0 +1,13 @@
+FROM alpine:latest as base_jre
+
+MAINTAINER ZhangXu <c-all@qq.com>
+
+#ARG apk="apk --no-cache"
+ARG ALPINE_VERSION="3.7"
+ARG MIRROR="mirrors.ustc.edu.cn"
+
+RUN sed -i "s/dl-cdn.alpinelinux.org/${MIRROR}/g" /etc/apk/repositories \
+&& apk update \
+&& apk add openjdk8-jre-base \
+&& rm -r /var/cache/apk/* || true
+
