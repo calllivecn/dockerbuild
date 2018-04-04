@@ -1,0 +1,20 @@
+FROM alpine_py3
+
+MAINTAINER ZhangXu <c-all@qq.com>
+
+
+RUN echo 'http://dl-cdn.alpinelinux.org/alpine/edge/testing' >> /etc/apk/repositories \
+&& apk update \
+&& apk add polipo \
+&& pip3 install shadowsocks \
+&& rm  /var/cache/apk/*
+
+ENV CONFIG SERVER_ADDR SERVER_PORT LOCAL_ADDR LOCAL_PORT PASSWORD METHOD FAST_OPEN POLIPO
+
+COPY shadowsocks.sh /
+
+CMD ["busybox","ash","/shadowsocks.sh"]
+
+WORKDIR ["/"]
+
+EXPOSE 1080 1080/udp 8123
