@@ -96,15 +96,15 @@ echo "done safe exit."
 ######
 
 if [ "$config_flag"x = "1"x ];then
-	echo 'sslocal -c' "$CONFIG"
-	sslocal -c "$CONFIG" &
+	echo 'sslocal -q -c' "$CONFIG"
+	sslocal -q -c "$CONFIG" &
 	pid=$!
 else
-	echo 'sslocal' "$SERVER_ADDR" "$SERVER_PORT" \
+	echo 'sslocal -q' "$SERVER_ADDR" "$SERVER_PORT" \
 	"$LOCAL_ADDR" "$LOCAL_PORT" "$PASSWORD" \
 	"$METHOD" "$TIMEOUT" "$FAST_OPEN"
 
-	sslocal "$SERVER_ADDR" "$SERVER_PORT" \
+	sslocal -q "$SERVER_ADDR" "$SERVER_PORT" \
 	"$LOCAL_ADDR" "$LOCAL_PORT" "$PASSWORD" \
 	"$METHOD" "$TIMEOUT" "$FAST_OPEN" &
 	pid=$!
