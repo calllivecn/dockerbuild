@@ -35,16 +35,19 @@ def sig_handler(sig_number,SIG):
 signal.signal(signal.SIGTERM,sig_handler)
 
 def cmd_input():
-	cmd = ''
-	while cmd != sub_exit_cmd:
-		cmd = input()
-		cmd2 = cmd + os.linesep
-		p.stdin.write(cmd2.encode())
-		p.stdin.flush()
-	else:
-		cmd = sub_exit_cmd + os.linesep
-		p.stdin.write(cmd.encode())
-		p.stdin.flush()
+    cmd = ''
+    try:
+        while cmd != sub_exit_cmd:
+            cmd = input()
+            cmd2 = cmd + os.linesep
+            p.stdin.write(cmd2.encode())
+            p.stdin.flush()
+        else:
+            cmd = sub_exit_cmd + os.linesep
+            p.stdin.write(cmd.encode())
+            p.stdin.flush()
+    except EOFError:
+        pass
 
 th = Thread(target=cmd_input,daemon=True)
 th.start()
