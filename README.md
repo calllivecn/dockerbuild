@@ -8,9 +8,12 @@
 - `echo http://mirrors.ustc.edu.cn/alpine/v3.3/main/ > /etc/apk/repssitories`
 
 
+## base enviroument
 ### py3
-- build -t alpine\_py3
+- `cd py3`
+- `docker build -t alpine_py3`
 
 ### java
-- build -t alpine\_jre8
+- `cd java`
+- `docker build -t alpine_jre8`
 

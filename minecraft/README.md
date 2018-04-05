@@ -1,1 +1,1 @@
-### Minecaft docker container
+### Minecaft docker image
