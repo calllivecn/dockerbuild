@@ -11,9 +11,9 @@
 ## base enviroument
 ### py3
 - `cd py3`
-- `docker build -t alpine_py3`
+- `docker build -t alpine_py3 .`
 
 ### java
 - `cd java`
-- `docker build -t alpine_jre8`
+- `docker build -t alpine_jre8 .`
 
