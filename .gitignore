@@ -1,2 +1,2 @@
-etcd-cluster/etcd
-etcd-cluster/etcdctl
+etcd/etcd
+etcd/etcdctl

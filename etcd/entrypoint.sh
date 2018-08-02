@@ -11,6 +11,13 @@ if [ -z $UUID ];then
 fi
 }
 
+current_url(){
+if [ -z $CURRENT_URL ];then
+	echo "required CURRENT_URL environment."
+	exit 2
+fi
+}
+
 if [ -z $NODE_NAME ];then
 	NODE_NAME=etcd_$(hostname)
 fi
@@ -26,7 +33,6 @@ do
 		sleep 1
 	fi
 done
-echo "etcdctl set /discovery/${UUID}/_config/size ${CLUSTER_SIZE} ... done"
 }
 
 discovery(){
@@ -42,6 +48,7 @@ discovery(){
 		exit 2
 	fi
 
+	echo "etcdctl set /discovery/${UUID}/_config/size ${CLUSTER_SIZE} ... "
 	set_cluster_nodes &
 	
 	exec etcd --name ${NODE_NAME} \
@@ -50,11 +57,25 @@ discovery(){
 	 --advertise-client-urls http://0.0.0.0:2379
 }
 
+start_etcd(){
+	# require ETCD_* environment
+	exec etcd
+}
+
 ## etcd discovery end
 
 if [ "$1"x = "--discovery"x ];then
 	discovery
 fi
+
+## etcd default start begin
+
+if [ "$1"x = "--start"x ];then
+	start_etcd
+fi
+
+## etcd default start end
+
 
 ## etcd cluster begin
 
@@ -71,11 +92,11 @@ case "$1" in
 		echo 'DISCOVERY_URL is etcd discovery url'
 		exit 0
 		;;
-	--entrypoint.sh)
-		echo "ENV variable...BEGIN"
+	--entrypoint)
+		echo "\033[31mENV variable...BEGIN\033[0m"
 		env
-		echo "ENV variable...END"
-		echo "$0...BEGIN"
+		echo "\033[31mENV variable...END\033[0m"
+		echo "\033[34m $0 ... BEGIN\033[0m"
 		cat $0
 		echo "$0...END"
 		exit 0
@@ -84,13 +105,10 @@ esac
 
 uuid
 
+current_url
+
 if [ -z $DISCOVERY_URL ];then
 	echo "required DISCOVERY_URL environment."
-	exit 2
-fi
-
-if [ -z $CURRENT_URL ];then
-	echo "required CURRENT_URL environment."
 	exit 2
 fi
 
