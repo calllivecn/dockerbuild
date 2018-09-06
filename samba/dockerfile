@@ -1,13 +1,22 @@
-FROM ubuntu:latest
+FROM ubuntu-devel:latest
 
 MAINTAINER ZhangXu <c-all@qq.com>
 
 RUN apt update \
 && apt -y upgrade \
-&& apt -y upgrade \
-&& 
+&& apt -y install samba
 
-CMD ["ash"]
+COPY smb.conf /etc/samba/
 
-WORKDIR /work
+RUN useradd zx
+
+RUN echo | pdbedit -a -u zx -t
+
+CMD ["smbd","-i","-S","-p","2445","-p","2139"]
+
+EXPOSE 2139 2445
+
+WORKDIR /smb
+
+VOLUME /smb
 
