@@ -8,15 +8,12 @@ RUN apt update \
 
 COPY smb.conf /etc/samba/
 
-RUN useradd zx
+ARG smb_password=
 
-RUN echo | pdbedit -a -u zx -t
+RUN bash -xc "echo -e '${smb_password}\n${smb_password}' | pdbedit -t -a -u root"
 
-CMD ["smbd","-i","-S","-p","2445","-p","2139"]
+CMD ["smbd","-FS", "-s", "/etc/samba/smb.conf", "-p","445"]
 
-EXPOSE 2139 2445
+EXPOSE 445
 
-WORKDIR /smb
-
-VOLUME /smb
-
+VOLUME /ro /rw
