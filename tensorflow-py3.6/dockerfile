@@ -1,0 +1,24 @@
+FROM ubuntu-devel:latest
+
+MAINTAINER ZhangXu <c-all@qq.com>
+
+
+RUN apt -y update \
+&& apt -y upgrade \
+&& mkdir -p /root/.pip/ \
+&& mkdir /run/sshd
+
+RUN apt -y install python3-pip openssh-server
+
+COPY pip.conf /root/.pip/
+
+RUN pip3 install ipython virtualenv tensorflow keras
+
+COPY common.pub /tmp/
+
+RUN mkdir /root/.ssh && cat /tmp/common.pub >> /root/.ssh/known_hosts \
+&& echo "root:zxkeras" |chpasswd 
+
+CMD ["/usr/sbin/sshd","-D"]
+
+EXPOSE 22
