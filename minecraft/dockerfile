@@ -1,4 +1,4 @@
-FROM alpine_jre8:latest
+FROM java:latest
 
 MAINTAINER ZhangXu <c-all@qq.com>
 
