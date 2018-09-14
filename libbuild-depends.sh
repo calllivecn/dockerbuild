@@ -21,23 +21,18 @@ already_exists_depends(){
 
 build_depends(){
 
-	local depends_len=${#DEPENDS[@]} image
+	if already_exists_depends "${DEPENDS}";then
+		:
+	else
+		pushd ../${DEPENDS}
+		bash build.sh
+		popd
+	fi
 
-	for i in $(seq 0 $[depends_len -1])
-	do
-		image=${DEPENDS[${i}]}
-		if already_exists_depends "${image}";then
-			:
-		else
-			pushd ../${image}
-			bash build.sh
-			popd
-		fi
-	done
 }
 
 
-if [ -n $DEPAENDS ];then
+if [ -n "${DEPENDS}" ];then
 	build_depends
 else
 	echo "current build not have depends."

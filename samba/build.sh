@@ -4,11 +4,22 @@
 
 set -x
 
+DOCKERFILE=dockerfile-sed
+
 if [ -z $1 ];then
 	echo "需要给一个samba密码"
 	exit 1
 else
-	sed -i "s#PW#${1}#" dockerfile
-	docker build -t samba .
+	sed "s#PW#${1}#" dockerfile > ${DOCKERFILE}
+
+	#DEPENDS=ubuntu
+	. ../libbuild-depends.sh
+
+	docker build -t ${IMAGE_NAME} -f ${DOCKERFILE} .
+
+	echo "username: root"
+	echo "passwrod: $1"
+
+	rm ${DOCKERFILE}
 fi
 
