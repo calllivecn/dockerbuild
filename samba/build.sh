@@ -1,25 +1,12 @@
 #!/bin/bash
-# date 2018-09-13 20:48:25
+# date 2018-08-28 15:27:02
 # author calllivecn <c-all@qq.com>
 
-set -x
+DEPENDS=ubuntu
+. ../libbuild-depends.sh
 
-DOCKERFILE=dockerfile-sed
-
-if [ -z $1 ];then
-	echo "需要给一个samba密码"
-	exit 1
+if [ -n $NO_CACHE ];then
+	docker build --no-cache -t ${IMAGE_NAME} .
 else
-	sed "s#PW#${1}#" dockerfile > ${DOCKERFILE}
-
-	#DEPENDS=ubuntu
-	. ../libbuild-depends.sh
-
-	docker build -t ${IMAGE_NAME} -f ${DOCKERFILE} .
-
-	echo "username: root"
-	echo "passwrod: $1"
-
-	rm ${DOCKERFILE}
+	docker build -t ${IMAGE_NAME} .
 fi
-
