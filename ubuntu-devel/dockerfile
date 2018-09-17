@@ -1,0 +1,9 @@
+FROM ubuntu-devel:latest
+
+MAINTAINER ZhangXu <c-all@qq.com>
+
+RUN apt -y update && apt -y upgrade
+
+RUN apt -y install gcc zlib zlib-dev  \
+&& apt clean \
+&& rm -rf /var/lib/apt/lists
