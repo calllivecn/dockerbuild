@@ -2,7 +2,11 @@
 # date 2018-08-28 15:27:02
 # author calllivecn <c-all@qq.com>
 
-DEPENDS=ubuntu-devel
+DEPENDS=ubuntu-base
 . ../libbuild-depends.sh
 
-docker build -t ${IMAGE_NAME} .
+if [ -n $NO_CACHE ];then
+	docker build --no-cache -t ${IMAGE_NAME} .
+else
+	docker build -t ${IMAGE_NAME} .
+fi

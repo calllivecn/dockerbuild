@@ -6,6 +6,7 @@ if [ -z "$1" ];then
 	echo "需要你的docker registry前缀！！！(如：registry.cn-hangzhou.aliyuncs.com/calllivecn)"
 	exit 1
 fi
+
 prefix_docker_registry="$1"
 
 cd $(dirname ${0})

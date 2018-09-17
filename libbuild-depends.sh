@@ -10,6 +10,29 @@ BASE_DIR=$(dirname ${CD_DIR})
 
 IMAGE_NAME=${CD_DIR##*/}
 
+no_cache(){
+
+	local arg
+
+	for arg in "$@"
+	do
+
+		if [ -z "$arg"x = "--no-cache"x ];then
+			NO_CACHE=1
+			shift
+		fi
+	done
+}
+no_cache
+
+docker_build(){
+	if [ -n $NO_CACHE ];then
+		bash build.sh
+	else
+		bash build.sh --no-cache
+	fi
+}
+
 already_exists_depends(){
 
 	if docker images --format={{.Repository}} |grep -qE ^"$1"$;then
@@ -25,7 +48,7 @@ build_depends(){
 		:
 	else
 		pushd ../${DEPENDS}
-		bash build.sh
+		docker_build
 		popd
 	fi
 
