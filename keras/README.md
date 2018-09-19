@@ -1,4 +1,4 @@
-# tensorflow 、keras for python3.6
+# tensorflow CPU 、keras for python3.6
 
 - build:
 ```bash
