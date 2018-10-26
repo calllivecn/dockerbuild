@@ -1,0 +1,23 @@
+FROM ubuntu-base:latest
+
+RUN apt -y update \
+&& apt install -y gedit
+#&& openssh-server openssh-clients openssl openssl-devel epel-release
+
+#RUN yum groupinstall -y "GNOME Desktop"
+#RUN yum groupinstall -y "Development and Creative Workstation"
+
+
+
+#RUN sed -i 's/UsePAM yes/UsePAM no/g' /etc/ssh/sshd_config \
+#    && echo 'root:admin' | chpasswd \
+#    && useradd -u 1000 admin \
+#    && echo "admin:admin" | chpasswd \
+#    && echo "admin   ALL=(ALL)       NOPASSWD: ALL" >> /etc/sudoers \
+#    && ssh-keygen -t dsa -f /etc/ssh/ssh_host_dsa_key \
+#    && ssh-keygen -t rsa -f /etc/ssh/ssh_host_rsa_key \
+#    && mkdir /var/run/sshd
+
+EXPOSE 22
+CMD ["/usr/sbin/sshd", "-D"]
+
