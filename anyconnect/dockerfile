@@ -1,0 +1,11 @@
+FROM docker-run-gui:latest
+
+add anyconnect/ /tmp/
+
+# install depends
+RUN apt install libgtk2.0-0
+
+RUN cd /tmp/anyconnect/vpn \
+&& ./vpn_install.sh
+
+
