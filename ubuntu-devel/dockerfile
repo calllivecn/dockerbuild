@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 FROM ubuntu-devel:latest
 
 MAINTAINER ZhangXu <c-all@qq.com>
@@ -6,13 +5,5 @@ MAINTAINER ZhangXu <c-all@qq.com>
 RUN apt -y update && apt -y upgrade
 
 RUN apt -y install gcc zlib zlib-dev  \
-=======
-FROM ubuntu-base:latest
-
-MAINTAINER ZhangXu <c-all@qq.com>
-
-RUN apt -y install apt-utils \
-&& apt -y install gcc \
->>>>>>> e8642dcbd7db77615db9e50d578d97aa0388e2c4
 && apt clean \
 && rm -rf /var/lib/apt/lists
