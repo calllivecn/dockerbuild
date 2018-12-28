@@ -1,4 +1,4 @@
-FROM ubuntu-devel:latest
+FROM ubuntu-base:latest
 
 MAINTAINER ZhangXu <c-all@qq.com>
 

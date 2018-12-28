@@ -2,22 +2,20 @@ FROM ubuntu-base:latest
 
 MAINTAINER ZhangXu <c-all@qq.com>
 
-
 RUN apt -y update \
 && apt -y upgrade \
-&& mkdir -p /root/.pip/ \
 && mkdir /run/sshd
 
 RUN apt -y install python3-pip openssh-server
 
-COPY pip.conf /root/.pip/
+COPY pip.conf /etc/pip.conf
 
 RUN pip3 install ipython virtualenv tensorflow keras
 
-COPY common.pub /tmp/
+COPY common.pub /root/.ssh/authorized_keys
 
-RUN mkdir /root/.ssh && cat /tmp/common.pub >> /root/.ssh/authorized_keys \
-&& echo "root:zxkeras" |chpasswd 
+RUN echo "root:zxkeras" |chpasswd \
+&& echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
 
 CMD ["/usr/sbin/sshd","-D"]
 
