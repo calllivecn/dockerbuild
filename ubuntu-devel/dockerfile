@@ -4,6 +4,6 @@ MAINTAINER ZhangXu <c-all@qq.com>
 
 RUN apt -y update && apt -y upgrade
 
-RUN apt -y install gcc zlib zlib-dev  \
+RUN apt -y install gcc make zlib1g-dev libssl-dev \
 && apt clean \
 && rm -rf /var/lib/apt/lists
