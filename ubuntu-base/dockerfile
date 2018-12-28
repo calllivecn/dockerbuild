@@ -8,7 +8,7 @@ RUN apt -y update && apt -y upgrade
 
 
 RUN apt -y install apt-utils \
-&& apt -y install iproute2 vim bash-completion less iputils-ping telnet \
+&& apt -y install iproute2 vim bash-completion less iputils-ping telnet wget curl\
 gcc git \
 python3 \
 && apt clean \
