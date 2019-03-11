@@ -1,5 +1,4 @@
-keras/common.pub
-keras/*.pub
+./**/*.pub
 etcd/etcd
 etcd/etcdctl
 confd/confd
