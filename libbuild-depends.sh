@@ -4,6 +4,8 @@
 
 set -e
 
+BASE_IMAGES="alpine ubuntu centos"
+
 CD_DIR=$(dirname $(pwd)/${0})
 
 BASE_DIR=$(dirname ${CD_DIR})
@@ -42,14 +44,36 @@ already_exists_depends(){
 	fi
 }
 
+check_base_images(){
+	# T is true, F is false
+	local img flag=F
+
+	for img in ${BASE_IMAGES}
+	do
+		if [ "${DEPENDS}"x = "$img"x ];then
+			flag=T
+		fi
+	done
+
+	if [ $flag = "T" ];then
+		return 0
+	else
+		return 1
+	fi
+}
+
 build_depends(){
 
 	if already_exists_depends "${DEPENDS}";then
 		:
 	else
-		pushd ../${DEPENDS}
-		docker_build
-		popd
+		if check_base_images;then
+			docker pull "${DEPENDS}"
+		else
+			pushd ../${DEPENDS}
+			docker_build
+			popd
+		fi
 	fi
 
 }
