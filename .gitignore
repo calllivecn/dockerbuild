@@ -1,4 +1,4 @@
-./**/*.pub
+*.pub
 etcd/etcd
 etcd/etcdctl
 confd/confd
