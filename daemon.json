@@ -1,5 +1,5 @@
 {
  "hosts":["tcp://0.0.0.0","unix:///var/run/docker.sock"],
- "registry-mirrors":["https://xr88j654.mirror.aliyuncs.com","https://127.0.0.1"],
+ "registry-mirrors":["https://registry.docker-cn.com","https://xr88j654.mirror.aliyuncs.com","https://127.0.0.1"],
  "data-root":"/home/zx/docker_root"
  }
