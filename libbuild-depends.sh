@@ -19,7 +19,7 @@ no_cache(){
 	for arg in "$@"
 	do
 
-		if [ -z "$arg"x = "--no-cache"x ];then
+		if [ "$arg"x = "--no-cache"x ];then
 			NO_CACHE=1
 			shift
 		fi
@@ -29,9 +29,9 @@ no_cache
 
 docker_build(){
 	if [ -n $NO_CACHE ];then
-		bash build.sh
-	else
 		bash build.sh --no-cache
+	else
+		bash build.sh
 	fi
 }
 
@@ -55,9 +55,14 @@ check_base_images(){
 		fi
 	done
 
+
 	if [ $flag = "T" ];then
 		return 0
 	else
+		if [ -z $DEPENDS ];then
+			echo "need \$DEPENDS"
+			exit 1
+		fi
 		return 1
 	fi
 }
