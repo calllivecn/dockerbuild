@@ -6,4 +6,4 @@ RUN apt update && \
 apt install -y nodejs npm
 
 
-RUN npm install -g electron-forge electron-packager electron-builder
+RUN npm install -g electron-forge electron-packager electron-builder electron-asar
