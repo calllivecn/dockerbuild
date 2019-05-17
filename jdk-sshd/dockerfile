@@ -12,7 +12,7 @@ apt clean && \
 mkdir /run/sshd
 
 
-ADD jre*.tar.gz /usr/local/
+ADD jdk*.tar.gz /usr/local/
 
 ENV JAVA_HOME=/usr/local JRE_HOME=/usr/local
 
