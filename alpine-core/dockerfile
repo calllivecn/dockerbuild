@@ -3,11 +3,10 @@ FROM alpine:latest
 MAINTAINER ZhangXu <c-all@qq.com>
 
 #ARG apk="apk --no-cache"
-ARG ALPINE_VERSION="3.8"
+#ARG ALPINE_VERSION="3.8"
 ARG MIRROR="mirrors.ustc.edu.cn"
 
-RUN sed -i "s/dl-cdn.alpinelinux.org/${MIRROR}/g" /etc/apk/repositories \
-&& apk update
+RUN sed -i "s/dl-cdn.alpinelinux.org/${MIRROR}/g" /etc/apk/repositories
 
 CMD ["ash"]
 

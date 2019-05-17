@@ -1,14 +1,9 @@
-FROM ubuntu:latest
+FROM ubuntu-core:latest
 
 MAINTAINER ZhangXu <c-all@qq.com>
 
-RUN sed -i -e "s#archive.ubuntu.com#mirrors.aliyun.com#g" -e "s#security.ubuntu.com#mirrors.aliyun.com#g" /etc/apt/sources.list
-
-RUN apt -y update && apt -y upgrade
-
-
-RUN apt -y install apt-utils \
-&& apt -y install iproute2 vim bash-completion less iputils-ping telnet wget curl \
+RUN apt -y update \
+&& apt -y --no-install-recommends install iproute2 vim bash-completion less iputils-ping telnet wget curl \
 gcc git \
 python3 \
 && apt clean \

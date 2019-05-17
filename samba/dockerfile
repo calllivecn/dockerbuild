@@ -1,16 +1,16 @@
-FROM ubuntu:latest
+FROM ubuntu-core:latest
 
 MAINTAINER ZhangXu <c-all@qq.com>
 
 RUN apt update \
 && apt -y upgrade \
-&& apt -y install samba
+&& apt -y --no-install-recommends install samba
 
 COPY smb.conf /etc/samba/
 
-ARG smb_password=PW
+ARG SMB_PASSWORD
 
-RUN bash -xc "echo -e '${smb_password}\n${smb_password}' | pdbedit -t -a -u root"
+RUN bash -xc "echo -e '${SMB_PASSWORD:-password}\n${SMB_PASSWORD:-password}' | pdbedit -t -a -u root"
 
 CMD ["smbd","-FS", "-s", "/etc/samba/smb.conf", "-p","445"]
 

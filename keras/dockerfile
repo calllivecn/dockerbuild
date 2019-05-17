@@ -6,13 +6,13 @@ RUN apt -y update \
 && apt -y upgrade \
 && mkdir /run/sshd
 
-RUN apt -y install python3-pip openssh-server
+RUN apt -y install --no-install-recommends python3-pip openssh-server
 
 COPY pip.conf /etc/pip.conf
 
 RUN pip3 install ipython virtualenv tensorflow keras
 
-COPY common.pub /root/.ssh/authorized_keys
+COPY sshkey.pub /root/.ssh/authorized_keys
 
 RUN echo "root:zxkeras" |chpasswd \
 && echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
