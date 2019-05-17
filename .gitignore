@@ -2,3 +2,13 @@
 etcd/etcd
 etcd/etcdctl
 confd/confd
+
+sshkey
+sshkey.pub
+
+*.tar
+*.gz
+*.xz
+*.zip
+*.bz2
+*.swp

@@ -1,9 +1,10 @@
-FROM alpine-base:latest
+FROM alpine-core:latest
 
 MAINTAINER ZhangXu <c-all@qq.com>
 
 RUN apk update \
-&& apk add python3
+&& apk add python3 \
+&& rm -r /var/cache/apk/*
 
 CMD ["ash"]
 
