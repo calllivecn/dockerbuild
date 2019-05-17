@@ -13,7 +13,7 @@ else
 fi
 
 if [ -n $NO_CACHE ];then
-	docker build --no-cache --build-arg $USER --build-arg "$PW" -t ${IMAGE_NAME} .
+	docker build --no-cache --build-arg "$PW" -t ${IMAGE_NAME} .
 else
 	docker build -t ${IMAGE_NAME} .
 fi

@@ -8,9 +8,9 @@ RUN apt update \
 
 COPY smb.conf /etc/samba/
 
-ARG SMB_PASSWORD
+ARG PW
 
-RUN bash -xc "echo -e '${SMB_PASSWORD:-password}\n${SMB_PASSWORD:-password}' | pdbedit -t -a -u root"
+RUN bash -xc "echo -e '${PW:-password}\n${PW:-password}' | pdbedit -t -a -u root"
 
 CMD ["smbd","-FS", "-s", "/etc/samba/smb.conf", "-p","445"]
 
