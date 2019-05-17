@@ -2,25 +2,22 @@
 # date 2018-08-28 15:27:02
 # author calllivecn <c-all@qq.com>
 
-#DEPENDS=ubuntu
+DEPENDS=ubuntu-core
 . ../libbuild-depends.sh
 
 if [ -z "$1" ];then
 	echo "请给出你的samba密码。"
 	exit 1
+else
+	PW="$1"
 fi
-
-SED=dockerfile-sed
-
-sed "s#PW#${1}#" dockerfile > ${SED}
 
 if [ -n $NO_CACHE ];then
-	docker build --no-cache -t ${IMAGE_NAME} -f ${SED} .
+	docker build --no-cache --build-arg $USER --build-arg "$PW" -t ${IMAGE_NAME} .
 else
-	docker build -t ${IMAGE_NAME} -f ${SED} .
+	docker build -t ${IMAGE_NAME} .
 fi
 
-rm -rf ${SED}
 
 echo "samba username: root"
-echo "samba password: ${1}"
+echo "samba password: ${PW}"

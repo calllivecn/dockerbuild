@@ -6,6 +6,7 @@ MAINTAINER ZhangXu <c-all@qq.com>
 
 RUN apk update \
 && apk add polipo \
+&& rm -r /var/cache/apk/* \
 && pip3 install shadowsocks
 
 ENV CONFIG SERVER_ADDR SERVER_PORT LOCAL_ADDR LOCAL_PORT PASSWORD METHOD FAST_OPEN POLIPO
