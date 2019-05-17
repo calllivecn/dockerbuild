@@ -2,3 +2,9 @@
 etcd/etcd
 etcd/etcdctl
 confd/confd
+
+*.tar
+*.gz
+*.xz
+*.zip
+*.bz2

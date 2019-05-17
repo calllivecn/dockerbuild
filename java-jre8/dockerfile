@@ -1,0 +1,8 @@
+FROM ubuntu-base:latest
+
+MAINTAINER ZhangXu <c-all@qq.com>
+
+ADD jre*.tar.gz /usr/local/
+
+ENV JAVA_HOME=/usr/local/
+ENV JRE_HOME=/usr/local/
