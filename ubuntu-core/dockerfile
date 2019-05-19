@@ -2,7 +2,9 @@ FROM ubuntu:latest
 
 MAINTAINER ZhangXu <c-all@qq.com>
 
-RUN sed -i -e "s#archive.ubuntu.com#mirrors.aliyun.com#g" -e "s#security.ubuntu.com#mirrors.aliyun.com#g" /etc/apt/sources.list
+RUN sed -i -e "s#archive.ubuntu.com#mirrors.aliyun.com#g" -e "s#security.ubuntu.com#mirrors.aliyun.com#g" -e "s#^deb#deb [arch=amd64]#g" /etc/apt/sources.list
+
+#RUN sed -i -e "s#^deb#deb [arch=amd64]#g" -e "s#http://archive.ubuntu.com#https://mirrors.aliyun.com#g" -e "s#http://security.ubuntu.com#https://mirrors.aliyun.com#g" /etc/apt/sources.list
 
 RUN apt -y update \
 && apt -y upgrade \
