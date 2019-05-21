@@ -7,5 +7,5 @@ sh build.sh "${your samba password}"
 
 - Usage:
 ```shell
-docker run -itd --name samba -p 445:445 -v ${host_dir_rw}:/rw -v ${host_dir_ro}:/ro:ro samba:latest
+docker run -itd --name samba --restart no-failure:3 -p 445:445 -v ${host_dir_rw}:/rw -v ${host_dir_ro}:/ro:ro samba:latest
 ```
