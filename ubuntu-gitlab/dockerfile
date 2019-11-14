@@ -1,0 +1,15 @@
+FROM ubuntu-base:latest
+
+MAINTAINER ZhangXu <c-all@qq.com>
+
+RUN apt -y update && apt -y upgrade \
+&& apt -y install curl openssh-server ca-certificates 
+
+RUN curl https://packages.gitlab.com/install/repositories/gitlab/gitlab-ce/script.deb.sh |bash 
+
+ENV EXTERNAL_URL="SCHAME_GITLAB_URL"
+
+RUN  apt-get install gitlab-ce
+
+&& apt clean \
+&& rm -rf /var/lib/apt/lists
