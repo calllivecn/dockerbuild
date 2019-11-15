@@ -1,6 +1,6 @@
 FROM java:latest
 
-MAINTAINER ZhangXu <c-all@qq.com>
+LABEL maintainer="ZhangXu <c-all@qq.com>"
 
 #ARG apk="apk --no-cache"
 

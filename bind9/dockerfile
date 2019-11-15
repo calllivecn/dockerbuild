@@ -1,5 +1,5 @@
 FROM alpine:latest
 
-MAINTAINER zhangxu <c-all@qq.com>
+LABEL maintainer="zhangxu <c-all@qq.com>"
 
 RUN apk install bind9

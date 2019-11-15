@@ -1,6 +1,6 @@
 FROM ubuntu-devel:latest
 
-MAINTAINER ZhangXu <c-all@qq.com>
+LABEL maintainer="ZhangXu <c-all@qq.com>"
 
 ARG USER
 ARG UID

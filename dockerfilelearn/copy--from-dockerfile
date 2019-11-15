@@ -1,0 +1,16 @@
+FROM ubuntu-base:latest AS update
+
+RUN apt update \
+&& apt -y upgrade \
+&& touch /copy--from-is-work
+
+
+FROM ubuntu-devel:latest AS build
+
+COPY --from=update /copy--from-is-work .
+
+COPY --from=update /var/lib/apt/lists /var/lib/apt/lists
+
+RUN apt -y install python3 python3-pip 
+
+RUN rm -rf /var/lib/apt/lists
