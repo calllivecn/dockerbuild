@@ -1,6 +1,6 @@
 FROM py3:latest
 
-MAINTAINER ZhangXu <c-all@qq.com>
+LABEL maintainer="ZhangXu <c-all@qq.com>"
 
 #RUN echo "http://mirrors.ustc.edu.cn/alpine/edge/testing" >> /etc/apk/repositories \
 

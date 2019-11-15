@@ -1,6 +1,6 @@
 FROM py3:latest
 
-MAINTAINER calllivecn <c-all@qq.com>
+LABEL maintainer="calllivecn <c-all@qq.com>"
 
 RUN pip3 --no-cache-dir install docker-compose
 

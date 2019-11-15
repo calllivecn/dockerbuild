@@ -1,6 +1,6 @@
 FROM ubuntu-base:latest
 
-MAINTAINER ZhangXu <c-all@qq.com>
+LABEL maintainer="ZhangXu <c-all@qq.com>"
 
 ADD jre*.tar.gz /usr/local/
 

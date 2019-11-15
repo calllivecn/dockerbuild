@@ -1,6 +1,6 @@
 FROM alpine-core:latest
 
-MAINTAINER ZhangXu <c-all@qq.com>
+LABEL maintainer="ZhangXu <c-all@qq.com>"
 
 RUN apk update \
 && apk add python3 \

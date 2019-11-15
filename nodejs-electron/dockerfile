@@ -1,6 +1,6 @@
 FROM ubuntu-devel:latest
 
-MAINTAINER ZhangXu <c-all@qq.com>
+LABEL maintainer="ZhangXu <c-all@qq.com>"
 
 RUN apt update && \
 apt install -y nodejs npm
