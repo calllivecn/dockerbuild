@@ -1,0 +1,18 @@
+FROM py3:latest
+
+LABEL maintainer="ZhangXu <c-all@qq.com>"
+
+RUN apk update \
+&& apk add gcc python3-dev libc-dev libffi-dev openssl-dev \
+&& pip3 install certbot \
+&& rm -fr $HOME/.cache/ \
+&& rm -rf /var/cache/apk/*
+
+COPY config.ini aliyun.py manual-hook.py /
+
+ENTRYPOINT ["/usr/bin/certbot"]
+
+CMD ["--help"]
+
+WORKDIR /certbot
+
