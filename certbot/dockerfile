@@ -8,7 +8,7 @@ RUN apk update \
 && rm -fr $HOME/.cache/ \
 && rm -rf /var/cache/apk/*
 
-COPY config.ini aliyun.py manual-hook.py /
+COPY ali_dns.py /
 
 ENTRYPOINT ["/usr/bin/certbot"]
 
