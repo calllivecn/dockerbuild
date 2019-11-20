@@ -4,7 +4,9 @@ LABEL maintainer="ZhangXu <c-all@qq.com>"
 
 #ARG apk="apk --no-cache"
 #ARG ALPINE_VERSION="3.8"
-ARG MIRROR="mirrors.ustc.edu.cn"
+#ARG MIRROR="mirrors.ustc.edu.cn"
+#ARG MIRROR="https://mirrors.aliyun.com/alpine/v3.10/"
+ARG MIRROR="mirrors.aliyun.com"
 
 RUN sed -i "s/dl-cdn.alpinelinux.org/${MIRROR}/g" /etc/apk/repositories
 

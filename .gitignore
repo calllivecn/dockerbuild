@@ -3,6 +3,9 @@ etcd/etcd
 etcd/etcdctl
 confd/confd
 
+__pycache__/
+
+
 sshkey
 sshkey.pub
 
