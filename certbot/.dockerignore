@@ -1,2 +1,4 @@
 README.md
 dockerfile
+docs/
+__pycache__/

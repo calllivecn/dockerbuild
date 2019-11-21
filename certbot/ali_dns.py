@@ -93,8 +93,7 @@ class AliyunDns:
             self.__logger.error("签名出错...")
             self.__logger.error(e)
 
-        #signature = base64.encodebytes(h.digest()).strip()
-        signature = base64.encodestring(h.digest()).strip()
+        signature = base64.encodebytes(h.digest()).strip()
 
         return signature
 
