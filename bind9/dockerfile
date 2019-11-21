@@ -1,5 +1,5 @@
 FROM alpine:latest
 
-LABEL maintainer="zhangxu <c-all@qq.com>"
+LABEL maintainer="zhangxu <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
 
 RUN apk install bind9

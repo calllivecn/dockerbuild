@@ -2,7 +2,7 @@
 # date 2019-11-20 09:25:03
 # author calllivecn <c-all@qq.com>
 
-DEPENDS=py3
+DEPENDS=alpine-py3
 . ../libbuild-depends.sh
 
 
