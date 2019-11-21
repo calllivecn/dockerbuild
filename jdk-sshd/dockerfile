@@ -1,6 +1,6 @@
 FROM ubuntu-devel:latest
 
-LABEL maintainer="ZhangXu <c-all@qq.com>"
+LABEL maintainer="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
 
 ARG USER
 ARG UID

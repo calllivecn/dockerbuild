@@ -1,10 +1,10 @@
-FROM py3:latest
+FROM alpine-py3:latest
 
-LABEL maintainer="ZhangXu <c-all@qq.com>"
+LABEL maintainer="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
 
 RUN apk update \
 && apk add gcc python3-dev libc-dev libffi-dev openssl-dev \
-&& pip3 install certbot \
+&& pip3 install certbot certbot-dns-aliyun certbot-dns-dnspod \
 && rm -fr $HOME/.cache/ \
 && rm -rf /var/cache/apk/*
 

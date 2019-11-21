@@ -1,6 +1,6 @@
 FROM alpine:latest
 
-LABEL maintainer="ZhangXu <c-all@qq.com>"
+LABEL maintainer="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
 
 #ARG apk="apk --no-cache"
 #ARG ALPINE_VERSION="3.8"
