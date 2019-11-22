@@ -1,0 +1,14 @@
+[Unit]
+Description=certbot.service 定时器
+
+[Timer]
+
+# 每周一、三、执行
+OnBootSec=15min
+OnUnitActiveSec=3d
+
+#OnCalender=Mon,Wed *-*-* 03:01:00
+
+[Install]
+WantedBy=timer.target
+
