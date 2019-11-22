@@ -1,18 +1,37 @@
+FROM alpine-py3:latest AS venv
+
+RUN apk update \
+&& apk add gcc python3-dev libc-dev libffi-dev openssl-dev \
+&& pip3 install virtualenv
+
+
+# && pip install certbot certbot-dns-aliyun certbot-dns-dnspod \
+
+RUN virtualenv /venv \
+&& source /venv/bin/activate \
+&& pip install certbot \
+&& deactivate \
+&& rm -rf $HOME/.cache \
+&& rm -rf /var/cache/apk/*
+
+
 FROM alpine-py3:latest
 
 LABEL maintainer="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
 
-RUN apk update \
-&& apk add gcc python3-dev libc-dev libffi-dev openssl-dev \
-&& pip3 install certbot certbot-dns-aliyun certbot-dns-dnspod \
-&& rm -fr $HOME/.cache/ \
-&& rm -rf /var/cache/apk/*
+RUN apk --no-cache add libffi openssl
 
-COPY ali_dns.py /
+#RUN apk update \
+#&& apk add libffi openssl
+#&& rm -rf /var/cache/apk/*
 
-ENTRYPOINT ["/usr/bin/certbot"]
+COPY --from=venv /venv /venv
+
+COPY ali_dns.py tencent_dns.py /
+
+ENV PATH=/venv/bin:$PATH
+
+ENTRYPOINT ["/venv/bin/certbot"]
 
 CMD ["--help"]
-
-WORKDIR /certbot
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # coding=utf-8
-# date 2019-11-20 16:34:16
+# date 2019-11-22 09:11:49
 # author calllivecn <c-all@qq.com>
 
 
@@ -9,17 +9,17 @@ import sys
 import time
 import base64
 import hashlib
+import json
 import hmac
 
 import logging
-#import configparser
+import pprint
 
 import urllib
 from urllib import request
 from urllib import parse
 
-
-#import aliyun
+#import configparser
 
 # Set the global configuration
 #CONFIG_FILENAME = 'config.ini'
@@ -35,17 +35,10 @@ consoleHandler.setLevel(logging.DEBUG)
 consoleHandler.setFormatter(formatter)
 logger.addHandler(consoleHandler)
 
-#fileLogFlag = True if config.get('log','enable').lower() == 'true' else False
-#if fileLogFlag:
-#    logfile = config.get('log','logfile')
-#    fileHandler = logging.FileHandler(filename=logfile)
-#    fileHandler.setLevel(logging.DEBUG)
-#    fileHandler.setFormatter(formatter)
-#    logger.addHandler(fileHandler)
 
-
-class AliyunDns:
-    __endpoint = 'https://alidns.aliyuncs.com'
+class TencentDns:
+    __endpoint = 'https://cns.api.qcloud.com'
+    __endpoint = 'https://cns.api.qcloud.com/v2/index.php'
     __letsencryptSubDomain = '_acme-challenge'
     __appid = ''
     __appsecret = ''
@@ -55,41 +48,24 @@ class AliyunDns:
         self.__appid = appid
         self.__appsecret = appsecret
 
-    def __getSignatureNonce(self):
-        return str(int(round(time.time() * 1000)))
-
-    def __percentEncode(self, s):
-
-        res = parse.quote_plus(s.encode('utf8'), '')
-
-        res = res.replace('+', '%20')
-        res = res.replace('*', '%2A')
-        res = res.replace('%7E', '~')
-
-        #res = res.replace('+', '%20')
-        #res = res.replace('\'', '%27')
-        #res = res.replace('\"', '%22')
-        #res = res.replace('*', '%2A')
-        #res = res.replace('%7E', '~')
-
-        return res
+        self.__urlparse = parse.urlparse(self.__endpoint)
 
     def __signature(self, params):
-        sortedParams = sorted(params.items(), key=lambda params: params[0])
+        sortedParams = []
+        for k, v in sorted(params.items(), key=lambda params: params[0]):
+            sortedParams.append(k.replace('_', '.') + '=' + v)
 
-        query = ''
-        for k, v in sortedParams:
-            query += '&' + self.__percentEncode(k) + '=' + self.__percentEncode(v)
+        self.__query_str = '&'.join(sortedParams)
 
-        self.__logger.debug("参数编码串：{}".format(query))
+        self.__logger.debug("参数编码串：{}".format(self.__query_str))
 
-        stringToSign = 'GET&%2F&' + self.__percentEncode(query[1:])
+        stringToSign = 'POST' + self.__urlparse.netloc + self.__urlparse.path + '?' + self.__query_str
         self.__logger.debug("签名串：{}".format(stringToSign))
 
         try:
-            h = hmac.new((self.__appsecret + "&").encode("utf-8"), stringToSign.encode("utf-8"), hashlib.sha1)
+            h = hmac.new(self.__appsecret.encode("utf-8"), stringToSign.encode("utf-8"), hashlib.sha256)
         except Exception as e:
-            self.__logger.error("签名出错...")
+            self.__logger.error("HMAC签名出错...")
             self.__logger.error(e)
 
         signature = base64.encodebytes(h.digest()).strip()
@@ -98,72 +74,107 @@ class AliyunDns:
 
     def __request(self, params):
         commonParams = {
-            'Format': 'JSON',
-            'Version': '2015-01-09',
-            'SignatureMethod': 'HMAC-SHA1',
-            'SignatureNonce': self.__getSignatureNonce(),
-            'SignatureVersion': '1.0',
-            'AccessKeyId': self.__appid,
-            'Timestamp':  time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        }
+            'SecretId': self.__appid,
+            'Timestamp':  str(time.time()),
+            'Nonce': str(int(time.time() * 1000)),
+            'SignatureMethod': 'HmacSHA256',
+            }
 
         # merge all params
         finalParams = commonParams.copy()
         finalParams.update(params)
 
-        self.__logger.debug("finalParams: {}".format(finalParams))
-
         # signature
         finalParams['Signature'] = self.__signature(finalParams)
         self.__logger.info('Signature: {}'.format(finalParams['Signature']))
+        self.__logger.debug('finalParam: {}'.format(finalParams))
 
-        # get final url
-        url = "{}/?{}".format(self.__endpoint, parse.urlencode(finalParams))
-        # print(url)
+        # encode post data
+        data = parse.urlencode(finalParams).encode("utf-8")
+        self.__logger.debug("POST urlencode(): {}".format(data))
 
-        req = request.Request(url)
+        req = request.Request(self.__endpoint, data=data, method="POST")
         self.__logger.debug(req.full_url)
         self.__logger.debug(req.get_method())
 
         try:
             f = request.urlopen(req)
-            response = f.read()
-            self.__logger.info(response.decode('utf-8'))
+            response = json.loads(f.read().decode('utf-8'))
+
+            if response.get("code") != 0:
+                self.__logger.error(response)
+                sys.exit(1)
+            else:
+                self.__logger.info(response)
+
+            self.__logger.info("Response: {}".format(response))
+
+            return response
+
         except request.HTTPError as e:
-            self.__logger.info(e.read().strip().decode('utf-8'))
+            self.__logger.info(e.read().decode('utf-8'))
             raise SystemExit(e)
 
-    def addDomainRecord(self, domain, rr, value):
+    def addDomainRecord(self, domain, value):
         params = {
-            'Action': 'AddDomainRecord',
-            'DomainName': domain,
-            'RR': rr,
-            'Type': 'TXT',
-            'Value': value
-        }
+            'Action': 'RecordCreate',
+            'domain': domain,
+            'subDomain': self.__letsencryptSubDomain,
+            'recordType': 'TXT',
+            'recordLine': '默认',
+            'value': value
+            }
         self.__request(params)
 
-    def deleteSubDomainRecord(self, domain, rr):
+    def deleteSubDomainRecord(self, domain, recordid):
         params = {
-            'Action': 'DeleteSubDomainRecords',
-            'DomainName': domain,
-            'RR': rr,
-            'Type': 'TXT'
-        }
+            'Action': 'RecordDelete',
+            'domain': domain,
+            'recordId': str(recordid),
+            }
         self.__request(params)
+
+    def getRecordId(self, domain):
+        params = {
+                'Action': 'RecordList',
+                'domain': domain,
+                'subDomain': self.__letsencryptSubDomain,
+                'recordType': 'TXT'
+            }
+        
+        response = self.__request(params)
+
+        if response.get("code") != 0:
+            self.__logger.error(response)
+            sys.exit(1)
+        else:
+            data = response["data"]
+            records = data["records"]
+
+            targets_id = []
+            for record in records:
+                if record["name"] == self.__letsencryptSubDomain:
+                    targets_id.append(record["id"])
+
+            return targets_id
+
 
     def addLetsencryptDomainRecord(self, domain, value):
-        self.addDomainRecord(domain, self.__letsencryptSubDomain, value)
+        self.addDomainRecord(domain, value)
 
     def deleteLetsencryptDomainRecord(self, domain):
-        self.deleteSubDomainRecord(domain, self.__letsencryptSubDomain)
 
-    def toString(self):
-        print('AliyunDns[appid=' + self.__appid + ', appsecret=' + self.__appsecret+']')
+        recordsId = self.getRecordId(domain)
+
+        for recordid in recordsId:
+            self.__logger.info("Delete: subDomain:{} recordId:{}".format(domain, recordid))
+            self.deleteSubDomainRecord(domain, recordid)
+
+    def __str__(self):
+        return 'SecretId=' + self.__appid + ', SecretKey=' + self.__appsecret
 
 
-
-def auth(aliyunDns):
+def auth(Dns):
 
     domain = os.environ.get('CERTBOT_DOMAIN')
     value = os.environ.get('CERTBOT_VALIDATION')
@@ -179,10 +190,8 @@ def auth(aliyunDns):
         logger.info('Domain:' + domain)
         logger.info('Value:' + value)
 
-        # aliyunDns.toString()
-
         # add letsencrypt domain record
-        aliyunDns.addLetsencryptDomainRecord(domain, value)
+        Dns.addLetsencryptDomainRecord(domain, value)
         logger.debug("addDomainRecord()")
 
         # wait for completion
@@ -195,12 +204,9 @@ def auth(aliyunDns):
     except urllib.error.HTTPError as e:
         logger.error(e)
         sys.exit(1)
-    except Exception as e:
-        logger.error(e)
-        sys.exit(1)
 
 
-def cleanup(aliyunDns):
+def cleanup(Dns):
     
     domain = os.environ.get('CERTBOT_DOMAIN')
     if domain is None:
@@ -210,22 +216,20 @@ def cleanup(aliyunDns):
         logger.info('Start to clean up')
         logger.info('Domain:' + domain)
 
-        # aliyunDns.toString()
-
         # delete letsencrypt domain record
-        aliyunDns.deleteLetsencryptDomainRecord(domain)
+        Dns.deleteLetsencryptDomainRecord(domain)
 
         logger.info('Success.')
         logger.info('Clean up end!')
 
-    except Exception as e:
+    except urllib.error.HTTPError as e:
         logger.error(e)
         sys.exit(1)
 
 
 
 Usage="""\
-Usage: {} <auth|cleanup> <appid> <secretkey>
+Usage: {} <auth|cleanup> <secretid> <secretkey>
 And: set environment CERTBOT_DOMAIN CERTBOT_VALIDATION
 """.format(sys.argv[0])
 
@@ -248,10 +252,10 @@ def main():
 
     
     if sys.argv[1] == "auth":
-        auth(AliyunDns(appid, secretkey))
+        auth(TencentDns(appid, secretkey))
 
     elif sys.argv[1] == "cleanup":
-        cleanup(AliyunDns(appid, secretkey))
+        cleanup(TencentDns(appid, secretkey))
 
     else:
         logger.error(Usage)
