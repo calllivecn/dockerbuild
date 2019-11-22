@@ -27,7 +27,7 @@ docker run -it --rm -v ${CERT_PATH}/letencrypt/:/etc/letsencrypt/ certbot:latest
 ### 更新证书：
 
 ```shell
-docker run -it --rm -v ${CERT_PATH}/letsencrypt/:/etc/letsencrypt/ certbot:latest renew
+docker run -i --rm -v ${CERT_PATH}/letsencrypt/:/etc/letsencrypt/ certbot:latest renew
 # 可以加入 cron 每周执行一次更新，证书没快到期之前certbot是不会执行证书更新的（有效期少于30天时更新证书）。
 ```
 
