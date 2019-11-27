@@ -2,10 +2,11 @@ FROM ubuntu-base:latest
 
 LABEL maintainer="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
 
-#ADD jre*.tar.gz /usr/local/
+#ARG JDK=JDK8
 
-COPY jre8/ /usr/local/
+COPY jdk8/ /usr/local
 
-ENV JAVA_HOME=/usr/local/ JRE_HOME=/usr/local/
+#RUN tar -vxf /tmp/$JDK -C /usr/local/
 
+ENV JAVA_HOME=/usr/local JRE_HOME=/usr/local
 
