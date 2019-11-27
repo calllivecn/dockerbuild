@@ -5,6 +5,10 @@ confd/confd
 
 __pycache__/
 
+*/jdk8/
+*/jre8/
+*/maven/
+
 
 sshkey
 sshkey.pub
