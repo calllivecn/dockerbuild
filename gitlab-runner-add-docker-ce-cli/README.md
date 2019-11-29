@@ -12,7 +12,7 @@ docker run -it --rm \
    gitlab-runner-docker-cli:latest register
 ```
 
-- 然后:
+- 然后启动:
 
 ```shell
 docker run -d --name gitlab-runner \
