@@ -1,6 +1,6 @@
 FROM java-jdk8:latest
 
-LABEL maintainer="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
+LABEL author="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
 
 COPY maven/ /usr/local
 
