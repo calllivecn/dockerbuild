@@ -1,6 +1,6 @@
 FROM py3:latest
 
-LABEL maintainer="calllivecn <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
+LABEL author="calllivecn <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
 
 RUN pip3 --no-cache-dir install docker-compose
 
