@@ -1,11 +1,13 @@
 FROM docker-run-gui:latest
 
-add anyconnect/ /tmp/
+COPY anyconnect/ /tmp/anyconnect/
 
 # install depends
-RUN apt install libxml2 kmod libgtk2.0-0 gedit
+RUN apt install -y libxml2 kmod libgtk2.0-0 \
+&& ls -lh /tmp/
+#gedit
 
 RUN cd /tmp/anyconnect/vpn \
-&& ./vpn_install.sh
+&& ./vpn_install.sh <(y)
 
 

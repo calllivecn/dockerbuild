@@ -1,7 +1,8 @@
 FROM ubuntu-base:latest
 
 RUN apt -y update \
-&& apt install -y gedit
+&& apt install -y libllvm8 \
+&& apt install -y nautilus gedit
 #&& openssh-server openssh-clients openssl openssl-devel epel-release
 
 #RUN yum groupinstall -y "GNOME Desktop"
