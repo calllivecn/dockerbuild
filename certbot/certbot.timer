@@ -14,5 +14,6 @@ OnCalendar=*-*-01/3 03:00:00
 # AccuracySec=1ms
 
 [Install]
-WantedBy=timer.target
+#WantedBy=timer.target
+WantedBy=multi-user.target
 
