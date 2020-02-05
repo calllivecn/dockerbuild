@@ -1,0 +1,18 @@
+FROM ubuntu:19.10
+
+LABEL author="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
+
+RUN sed -i -e "s#archive.ubuntu.com#mirrors.aliyun.com#g" -e "s#security.ubuntu.com#mirrors.aliyun.com#g" -e "s#^deb#deb [arch=amd64]#g" /etc/apt/sources.list
+
+RUN apt -y update \
+&& apt -y --no-install-recommends install iproute2 vim bash-completion less iputils-ping telnet wget curl \
+openvpn easy-rsa \
+python3 \
+&& apt clean \
+&& rm -rf /var/lib/apt/lists
+
+COPY ovpn-files/ /ovpn-files
+
+
+CMD ["/ovpn-files/start.sh"]
+
