@@ -5,6 +5,7 @@
 set -e
 
 if [ -f /ovpn-files/ovpn-init-done ];then
+	echo "already init exit."
 	exit 0
 fi
 
@@ -38,7 +39,10 @@ if [ ! -d /dev/net ];then
 fi
 
 if [ ! -c /dev/net/run ];then
-	mknod -v /dev/net/tun c 10 200
+	if [ -e /dev/net/run ];then
+		rm -rf /dev/net/run
+	fi
+	mknod /dev/net/tun c 10 200
 fi
 
 touch /ovpn-files/ovpn-init-done
