@@ -12,8 +12,10 @@ PKI_DIR=$EASYRSA/pki
 for user in "$@"
 do
 	if [ -d "$USERS/$user" ]; then
-		rm -rf $USERS/$user
-		rm -rf  $PKI_DIR/reqs/$user.req
+		rm -rfv $USERS/$user
+		rm -rfv $PKI_DIR/reqs/$user.req
+		rm -rfv $PKI_DIR/issued/$user.crt
+		rm -rfv $PKI_DIR/private/$user.key
 		sed -i '/'"$user"'/d' $PKI_DIR/index.txt
 	fi
 
@@ -31,8 +33,7 @@ do
 	cp /ovpn-files/client.ovpn $USERS/$user/$user.ovpn # 客户端配置文件
 	sed -i 's/clientuser/'"$user"'/g' $USERS/$user/$user.ovpn
 	cp $SERVER/ta.key $USERS/$user/ta.key  # tls-auth 文件
-	cd $USERS
-	zip -r $user.zip $user
+	zip -r $USERS/$user.zip $user
 
-	echo -e "\033[34muser config file: $EASYRSA/$user.zip \033[0m"
+	echo -e "\033[31muser config file: $USERS/$user.zip \033[0m"
 done

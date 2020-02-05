@@ -6,7 +6,8 @@ OVPNFILES="/ovpn-files"
 
 EASYRSA="/etc/openvpn/easy-rsa"
 OVPN="/etc/openvpn"
+
 SERVER="$OVPN/server"
 CLIENT="$OVPN/client"
-USERS="$CLIENT/USERS"
+USERS="$CLIENT/users"
 
