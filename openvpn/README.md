@@ -1,21 +1,24 @@
-# ubuntu:latest
-- openvpn
-- [openvpn-as docs](https://hub.docker.com/r/linuxserver/openvpn-as)
+# openVPN server
 
-```shell
-docker pull linuxserver/openvpn-as
 
-docker create \
-  --name=openvpn-as \
-  --cap-add=NET_ADMIN \
-  -e PUID=1000 \
-  -e PGID=1000 \
-  -e TZ=Europe/London \
-  -e INTERFACE=eth0 `#optional` \
-  -p 943:943 \
-  -p 9443:9443 \
-  -p 1194:1194/udp \
-  -v path to data:/config \
-  --restart unless-stopped \
-  linuxserver/openvpn-as
+### build
+```bash
+bash build.sh
 ```
+
+### 使用方法：
+
+- 启动: 
+	```shell
+	docker run -d \
+	--name=openvpn \
+	--cap-add=NET_ADMIN \
+	-p 1194:1194/tcp \
+	-p 1194:1194/udp \
+	--restart unless-stopped \
+	openvpn
+	```
+
+- 添加用户: /ovpn-files/ovpn-useradd.sh <username>
+
+- 删除用户：/ovpn-files/ovpn-userdel.sh <username>
