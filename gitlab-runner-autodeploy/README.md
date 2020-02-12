@@ -16,10 +16,10 @@ docker run -it --rm \
 ```shell
 docker run -d --name gitlab-runner \
     -v /etc/gitlab-runner:/etc/gitlab-runner \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    -v /root/.ssh/:/root/.ssh/ \
+    -v /root/.ssh/:/home/gitlab-runner/.ssh/ \
     -v /etc/ansible:/etc/ansible \ 
     gitlab-runner-docker-cli:latest
 ```
+~~ -v /var/run/docker.sock:/var/run/docker.sock \ ~~
 
 
