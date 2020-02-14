@@ -1,1 +1,1 @@
-### from alpine-base:latest build python3 enviroument
+### from alpine-core:latest build python3 enviroument
