@@ -3,8 +3,12 @@ FROM ubuntu-core:latest
 LABEL author="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
 
 RUN apt -y update \
-&& apt -y --no-install-recommends install iproute2 vim bash-completion less iputils-ping telnet wget curl \
-gcc git \
-python3 \
+&& apt -y --no-install-recommends install iproute2 vim bash-completion less iputils-ping telnet wget curl git \
 && apt clean \
 && rm -rf /var/lib/apt/lists
+
+# 设置容器里的时区
+
+## && DEBIAN_FRONTEND=noninteractive apt install -y tzdata \
+## && ln -vsf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+## && dpkg-reconfigure -f noninteractive tzdata 
