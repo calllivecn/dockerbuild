@@ -10,5 +10,9 @@ ARG MIRROR="mirrors.aliyun.com"
 
 RUN sed -i "s/dl-cdn.alpinelinux.org/${MIRROR}/g" /etc/apk/repositories
 
+# 设置容器里的时区
+RUN apk --no-cache add tzdata \
+&& ln -svf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
+
 CMD ["ash"]
 
