@@ -2,14 +2,12 @@ FROM alpine-core:latest
 
 LABEL author="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
 
-RUN apk update \
-&& apk add python3 \
+RUN apk --no-cache add python3 \
 && echo "[global]" >> /etc/pip.conf \
 && echo "index-url = https://mirrors.aliyun.com/pypi/simple/" >> /etc/pip.conf \
 && echo "[install]" >> /etc/pip.conf \
 && echo "trusted-host=mirrors.aliyun.com" >> /etc/pip.conf \
-&& rm -fr $HOME/.cache/ \
-&& rm -r /var/cache/apk/*
+&& rm -fr $HOME/.cache/
 
 CMD ["ash"]
 
