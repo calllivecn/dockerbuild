@@ -9,6 +9,8 @@ __pycache__/
 */jre8/
 */maven/
 
+*.jar
+
 
 sshkey
 sshkey.pub
