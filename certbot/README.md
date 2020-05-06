@@ -15,9 +15,17 @@ docker run -it --rm certbot:latest [--help]
 ### 创建新的证书(目前只能自动签发通用证书(yourdomainname.com 和 \*.yourdomainname.com)之后更新ali_dns.py以支持指定域名自动签发)：
 
 ```shell
-docker run -it --rm -v ${CERT_PATH}/letencrypt/:/etc/letsencrypt/ certbot:latest certonly --preferred-challenges dns-01 \
-	--manual --manual-auto-hook "python3 /ali_dns.py auth ${APPID} ${SECRETKEY}" --manual-cleanup-hook "python3 /ali_dns.py cleanup ${APPID} ${SECRETKEY}" \
+docker run -it --rm -v ${CERT_PATH}/letencrypt/:/etc/letsencrypt/ certbot:latest certonly -n --preferred-challenges dns-01 \
+	--manual --manual-auth-hook "python3 /ali_dns.py auth ${APPID} ${SECRETKEY}" --manual-cleanup-hook "python3 /ali_dns.py cleanup ${APPID} ${SECRETKEY}" \
 	-m "c-all@qq.com" --domain "yourdomainname.cc" --domain "*.yourdomainname.com"
+
+Or
+
+docker run -it --rm -v ${CERT_PATH}/letencrypt/:/etc/letsencrypt/ certbot:latest certonly -n --config-dir ${dir} --work-dir ${dir} --logs-dir ${dir}\
+	--preferred-challenges dns-01 \
+	--manual --manual-auth-hook "python3 /ali_dns.py auth ${APPID} ${SECRETKEY}" --manual-cleanup-hook "python3 /ali_dns.py cleanup ${APPID} ${SECRETKEY}" \
+	-m "c-all@qq.com" --domain "yourdomainname.cc" --domain "*.yourdomainname.com"
+
 ```
 
 ## **！！！${CERT_PATH}/letencrypt/ 路径是保存证书和配置的。**
