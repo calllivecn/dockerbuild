@@ -21,3 +21,5 @@ sshkey.pub
 *.zip
 *.bz2
 *.swp
+depend-cache/
+*.pyz
