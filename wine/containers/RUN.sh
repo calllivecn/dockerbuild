@@ -4,6 +4,12 @@
 
 set -e
 
+if [ -n "$APT_PROXY" ];then
+	echo "走了代理: $APT_PROXY" >&2
+else
+	echo "没走代理: $APT_PROXY" >&2
+fi
+
 sed -i -e "s#archive.ubuntu.com#mirrors.aliyun.com#g" \
 	-e "s#security.ubuntu.com#mirrors.aliyun.com#g" /etc/apt/sources.list
 
@@ -20,8 +26,10 @@ echo "deb https://dl.winehq.org/wine-builds/ubuntu/ $(grep CODENAME /etc/lsb-rel
 apt -y update 
 
 if [ -n "$APT_PROXY" ];then
+	echo "走了代理了: $APT_PROXY" >&2
 	DEBIAN_FRONTEND=noninteractive apt -o Acquire::https::Proxy::dl.winehq.org=$APT_PROXY -y install --install-recommends winehq-stable
 else
+	echo "没走代理: $APT_PROXY" >&2
 	DEBIAN_FRONTEND=noninteractive apt -y install --install-recommends winehq-stable
 fi
 
