@@ -13,13 +13,13 @@ FROM ${DEPENDS}:latest
 
 LABEL author="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
 
-ARGS APT_PROXY
+ARG APT_PROXY=$APT_PROXY
 
 COPY containers/ /tmp/
 
-RUN bash /tmp/containers/RUN.sh \
-&& mv /tmp/contaners/entrypoint.sh / \
-&& rm -rf /tmp/containers/ 
+RUN bash /tmp/RUN.sh \
+&& mv /tmp/entrypoint.sh / \
+&& rm -rf /tmp/*
 
 WORKDIR /home/wine
 
