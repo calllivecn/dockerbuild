@@ -9,9 +9,7 @@
 ```shell
 bash run-wine-gui.sh
 
-docker exec -it winegui bash
-
-su - wine
+docker exec -it winegui su - wine
 
 # 配置wine
 winecfg
