@@ -10,8 +10,7 @@ else
 	echo "没走代理: $APT_PROXY" >&2
 fi
 
-sed -i -e "s#archive.ubuntu.com#mirrors.aliyun.com#g" \
-	-e "s#security.ubuntu.com#mirrors.aliyun.com#g" /etc/apt/sources.list
+sed -i -e "s#archive.ubuntu.com#mirrors.aliyun.com#g" -e "s#security.ubuntu.com#mirrors.aliyun.com#g" /etc/apt/sources.list
 
 apt -y update
 
@@ -24,7 +23,7 @@ locale-gen en_US.UTF-8 zh_CN.UTF-8
 
 wget -O- https://dl.winehq.org/wine-builds/winehq.key| apt-key add -
 
-echo "deb https://dl.winehq.org/wine-builds/ubuntu/ $(grep CODENAME /etc/lsb-release |cut -d'=' -f2) main" >> /etc/apt/sources.list.d/wine.list \
+echo "deb https://dl.winehq.org/wine-builds/ubuntu/ $(grep CODENAME /etc/lsb-release |cut -d'=' -f2) main" >> /etc/apt/sources.list.d/wine.list
 
 apt -y update 
 
@@ -39,6 +38,8 @@ fi
 # 创建普通用户用来启动wine
 
 useradd -m -s /bin/bash wine
+
+echo "export LANG=zh_CN.UTF-8" >> /home/wine/.profile
 
 # 设置容器里的时区
 ln -vsf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime 
