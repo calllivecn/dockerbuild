@@ -18,7 +18,7 @@ winecfg
 
 ```
 
-
+### 可以设置安装winehq 时的代理 export APT_PROXY="http://127.0.0.1" 
 ```bash
 bash build.sh
 ```

@@ -18,8 +18,7 @@ ARG APT_PROXY=$APT_PROXY
 COPY containers/ /tmp/
 
 RUN bash /tmp/RUN.sh \
-&& mv /tmp/entrypoint.sh / \
-&& rm -rf /tmp/*
+&& rm -rf /tmp/* || true
 
 WORKDIR /home/wine
 
