@@ -17,7 +17,10 @@ apt -y update
 
 dpkg --add-architecture i386
 
-apt -y install ca-certificates gnupg2 iproute2 vim bash-completion less iputils-ping telnet wget curl git zip unzip gosu
+apt -y install ca-certificates gnupg2 iproute2 vim bash-completion less iputils-ping telnet wget curl git zip unzip gosu locales fonts-wqy-microhei
+
+# 配置中文
+locale-gen en_US.UTF-8 zh_CN.UTF-8
 
 wget -O- https://dl.winehq.org/wine-builds/winehq.key| apt-key add -
 
@@ -46,6 +49,6 @@ apt clean
 
 rm -rf /var/lib/apt/lists
 
-mv -v /tmp/containers/entrypoint.sh /
+mv -v /tmp/entrypoint.sh /
 
 
