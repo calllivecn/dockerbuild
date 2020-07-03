@@ -2,22 +2,16 @@
 # date 22020-07-03-00:00
 # author calllivecn <c-all@qq.com>
 
-set -e
+
+# step2
 
 if [ -n "$APT_PROXY" ];then
-	echo "走了代理: $APT_PROXY" >&2
+	echo "走了代理了: $APT_PROXY" >&2
+	export http_proxy="$APT_PROXY"
+	export https_proxy="$APT_PROXY"
 else
 	echo "没走代理: $APT_PROXY" >&2
 fi
-
-sed -i -e "s#archive.ubuntu.com#mirrors.aliyun.com#g" \
-	-e "s#security.ubuntu.com#mirrors.aliyun.com#g" /etc/apt/sources.list
-
-apt -y update
-
-dpkg --add-architecture i386
-
-apt -y install ca-certificates gnupg2 iproute2 vim bash-completion less iputils-ping telnet wget curl git zip unzip gosu
 
 wget -O- https://dl.winehq.org/wine-builds/winehq.key| apt-key add -
 
