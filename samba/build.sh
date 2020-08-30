@@ -2,7 +2,7 @@
 # date 2018-08-28 15:27:02
 # author calllivecn <c-all@qq.com>
 
-DEPENDS=ubuntu-core
+DEPENDS=alpine-py3
 . ../libbuild-depends.sh
 
 if [ -z "$1" ];then
