@@ -1,0 +1,9 @@
+[Unit]
+Description=certbot 定时任务
+
+
+[Service]
+ExecStart=/home/zx/bin/certbot.pyz renew --config-dir . --work-dir . --logs-dir . --post-hook '/bin/bash -c "cat sudo |sudo -S nginx -s reload"'
+User=zx
+Group=zx
+WorkingDirectory=/home/zx/.certbot
