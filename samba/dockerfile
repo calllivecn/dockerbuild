@@ -1,18 +1,16 @@
-FROM ubuntu-core:latest
+FROM alpine-py3:latest
 
 LABEL author="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
 
-RUN apt update \
-&& apt -y upgrade \
-&& apt -y --no-install-recommends install samba
+RUN apk --no-cache add samba
 
 COPY smb.conf /etc/samba/
 
 ARG PW
 
-RUN bash -xc "echo -e '${PW:-password}\n${PW:-password}' | pdbedit -t -a -u root"
+RUN ash -xc "echo -e '${PW:-password}\n${PW:-password}' | pdbedit -t -a -u root"
 
-CMD ["smbd","-FS", "-s", "/etc/samba/smb.conf", "-p","445"]
+CMD ["smbd","-FS", "--no-process-group", "-d", "1", "-s", "/etc/samba/smb.conf", "-p","445"]
 
 EXPOSE 445
 
