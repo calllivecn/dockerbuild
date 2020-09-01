@@ -27,3 +27,8 @@ trap clear_exit EXIT ERR SIGINT SIGTERM
 curl -o "$TMP/k3s-install.sh" https://raw.githubusercontent.com/rancher/k3s/master/install.sh
 
 sh "$TMP/k3s-install.sh"
+
+
+# 预安装
+#sudo mkdir -p /var/lib/rancher/k3s/agent/images/
+#sudo cp ./k3s-airgap-images-$ARCH.tar /var/lib/rancher/k3s/agent/images/
