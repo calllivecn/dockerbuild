@@ -21,10 +21,6 @@ LABEL author="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivec
 
 RUN apk --no-cache add libffi openssl
 
-#RUN apk update \
-#&& apk add libffi openssl
-#&& rm -rf /var/cache/apk/*
-
 COPY --from=venv /venv /venv
 
 COPY ali_dns.py tencent_dns.py /
