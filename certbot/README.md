@@ -26,6 +26,11 @@ docker run -it --rm -v ${CERT_PATH}/letencrypt/:/etc/letsencrypt/ certbot:latest
 	--manual --manual-auth-hook "python3 /ali_dns.py auth ${APPID} ${SECRETKEY}" --manual-cleanup-hook "python3 /ali_dns.py cleanup ${APPID} ${SECRETKEY}" \
 	-m "c-all@qq.com" --domain "yourdomainname.cc" --domain "*.yourdomainname.com"
 
+Or 使用 certbot.pyz 
+
+certbot.pyz certonly -n --preferred-challenges dns-01 \
+	--manual --manual-auth-hook "python3 /ali_dns.py auth ${APPID} ${SECRETKEY}" --manual-cleanup-hook "python3 /ali_dns.py cleanup ${APPID} ${SECRETKEY}" \
+	-m "c-all@qq.com" --domain "yourdomainname.cc" --domain "*.yourdomainname.com"
 ```
 
 ## **！！！${CERT_PATH}/letencrypt/ 路径是保存证书和配置的。**
@@ -37,6 +42,10 @@ docker run -it --rm -v ${CERT_PATH}/letencrypt/:/etc/letsencrypt/ certbot:latest
 ```shell
 docker run -i --rm -v ${CERT_PATH}/letsencrypt/:/etc/letsencrypt/ certbot:latest renew
 # 可以加入 cron 每周执行一次更新，证书没快到期之前certbot是不会执行证书更新的（有效期少于30天时更新证书）。
+
+Or # 使用 certbot.pyz
+
+
 ```
 
 
