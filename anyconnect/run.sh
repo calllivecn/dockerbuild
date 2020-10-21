@@ -4,4 +4,6 @@
 
 sudo xhost +
 
-docker run -it --rm -e DISPLAY=$DISPLAY -v /etc/localtime:/etc/localtime:ro -v /tmp/.X11-unix:/tmp/.X11-unix docker-run-gui /opt/cisco/anyconnect/bin/vpnui
+
+
+docker run -it --rm --cap-add NET_ADMIN -e DISPLAY=$DISPLAY -v /etc/localtime:/etc/localtime:ro -v /tmp/.X11-unix:/tmp/.X11-unix docker-run-gui /opt/cisco/anyconnect/bin/vpnui

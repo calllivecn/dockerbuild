@@ -11,6 +11,8 @@ __pycache__/
 
 *.jar
 
+anyconnect/anyconnect/
+
 
 sshkey
 sshkey.pub
