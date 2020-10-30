@@ -1,0 +1,2 @@
+# 添加工具
+grep -m 1 -E -o "^FROM\b .*" dockerfile |sed -n "s|^FROM \([[:alnum:]]*\)|\1|p" 
