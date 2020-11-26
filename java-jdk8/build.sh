@@ -2,7 +2,6 @@
 # date 2019-11-27 11:11:36
 # author calllivecn <c-all@qq.com>
 
-DEPENDS=ubuntu-base
 . ../libbuild-depends.sh
 
 

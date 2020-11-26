@@ -3,7 +3,6 @@
 # author calllivecn <c-all@qq.com>
 
 
-DEPENDS=ubuntu
 . ../libbuild-depends.sh
 
 set +e

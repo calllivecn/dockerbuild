@@ -2,7 +2,6 @@
 # date 2019-11-13 17:44:45
 # author calllivecn <c-all@qq.com>
 
-DEPENDS=ubuntu-base
 . ../libbuild-depends.sh
 
 if [ -n $NO_CACHE ];then
