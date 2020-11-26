@@ -12,6 +12,19 @@ BASE_DIR=$(dirname ${CD_DIR})
 
 IMAGE_NAME=${CD_DIR##*/}
 
+
+get_depend(){
+	local DF="$CD_DIR/dockerfile"
+	if [ ! -f "$DF" ];then
+		echo "当前目录没有 dockerfile 请检查"
+		exit 1
+	fi
+
+	grep -m 1 -oE '^FROM (.*):' "$DF" |cut -d' ' -f2 |cut -d':' -f1
+}
+
+DEPENDS=$(get_depend)
+
 no_cache(){
 
 	local arg

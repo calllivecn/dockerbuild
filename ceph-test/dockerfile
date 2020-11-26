@@ -1,0 +1,6 @@
+FROM ubuntu-devel:latest
+
+RUN apt update \
+&& apt -y install ceph-deploy openssh-server openssh-client
+
+CMD ["/bin/bash"]
