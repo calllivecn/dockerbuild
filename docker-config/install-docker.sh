@@ -4,13 +4,15 @@
 
 set -e
 
+CODENAME="/etc/lsb-release"
+
 #curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
 curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg | sudo apt-key add -
 
 if type -p lsb_release;then
 	codename="$(lsb_release -cs)"
 else
-	codename="$(grep CODENAME|cut -d'=' -f2)"
+	codename="$(grep $CODENAME |cut -d'=' -f2)"
 fi
 
 #echo "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list
@@ -23,3 +25,5 @@ echo "deb [arch=amd64] https://mirrors.aliyun.com/docker-ce/linux/ubuntu $codena
 sudo apt update
 
 sudo apt install docker-ce
+
+sudo gpasswd -a "$USER" docker
