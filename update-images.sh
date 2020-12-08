@@ -12,10 +12,10 @@ build_push(){
 	do
 		if [ -d ${files} ] && [ -f ${files}/dockerfile ];then
 			pushd ${files}
-			docker build -t ${files} . \
-			&& docker tag ${files} ${prefix_docker_registry}/${files} \
-			&& docker push ${prefix_docker_registry}/${files} \
-			&& docker rmi ${prefix_docker_registry}/${files}
+			podman build -t ${files} . \
+			&& podman tag ${files} ${prefix_docker_registry}/${files} \
+			&& podman push ${prefix_docker_registry}/${files} \
+			&& podman rmi ${prefix_docker_registry}/${files}
 			popd
 		fi
 	done
@@ -27,7 +27,7 @@ build(){
 	do
 		if [ -d ${files} ] && [ -f ${files}/dockerfile ];then
 			pushd ${files}
-			docker build -t ${files} . 
+			podman build -t ${files} . 
 			popd
 		fi
 	done

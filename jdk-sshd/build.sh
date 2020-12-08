@@ -5,7 +5,7 @@
 . ../libbuild-depends.sh
 
 if [ -n $NO_CACHE ];then
-	docker build --build-arg USER=$USER --build-arg UID=$UID --no-cache -t ${IMAGE_NAME} .
+	podman build --build-arg USER=$USER --build-arg UID=$UID --no-cache -t ${IMAGE_NAME} .
 else
-	docker build --build-arg USER=$USER --build-arg UID=$UID -t ${IMAGE_NAME} .
+	podman build --build-arg USER=$USER --build-arg UID=$UID -t ${IMAGE_NAME} .
 fi

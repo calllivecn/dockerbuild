@@ -50,7 +50,7 @@ docker_build(){
 
 already_exists_depends(){
 
-	if docker images --format={{.Repository}} |grep -qE ^"$1"$;then
+	if podman images --format={{.Repository}} |grep -qE ^"$1"$;then
 		return 0
 	else
 		return 1
@@ -86,7 +86,7 @@ build_depends(){
 		:
 	else
 		if check_base_images;then
-			docker pull "${DEPENDS}"
+			podman pull "${DEPENDS}"
 		else
 			pushd ../${DEPENDS}
 			docker_build
