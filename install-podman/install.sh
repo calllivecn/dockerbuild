@@ -4,10 +4,9 @@
 
 VERSION_ID=$(grep VERSION_ID /etc/os-release |cut -d'"' -f2)
 
-echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/ /" | sudo tee /etc/apt/sources.list.d/podman-stable.list
+echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/" | tee /etc/apt/sources.list.d/podman-stable.list
 
-curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/Release.key | sudo apt-key add -
+curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/Release.key | apt-key add -
 
-sudo apt update
-sudo apt -y upgrade
-sudo apt install podman
+apt update
+apt install podman
