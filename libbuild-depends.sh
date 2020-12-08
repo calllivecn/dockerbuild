@@ -14,9 +14,9 @@ IMAGE_NAME=${CD_DIR##*/}
 
 
 get_depend(){
-	local DF="$CD_DIR/dockerfile"
+	local DF="$CD_DIR/Dockerfile"
 	if [ ! -f "$DF" ];then
-		echo "当前目录没有 dockerfile 请检查"
+		echo "当前目录没有 Dockerfile 请检查"
 		exit 1
 	fi
 
