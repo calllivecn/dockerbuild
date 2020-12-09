@@ -1,0 +1,10 @@
+[Unit]
+Description=podman auto start from %u
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/podman start %i
+RemainAfterExit=yes
+
+[Install]
+WantedBy=default.target
