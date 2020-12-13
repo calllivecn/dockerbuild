@@ -1,9 +1,10 @@
 #!/bin/sh
 
-UID=${UID:-0}
+#UID=${UID:-0}
 #gid=${GID:-0}
 
 USERNAME="samba"
+USERNAME="root"
 
 if [ -z "$PW" ];then
 	echo "passwd is required."
@@ -12,7 +13,7 @@ fi
 
 LOGLEVEL=${LOGLEVEL:-1}
 
-adduser -D -u $UID $USERNAME
+#adduser -D -u $UID $USERNAME
 
 #smbpasswd -a $USERNAME
 
