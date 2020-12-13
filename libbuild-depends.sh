@@ -50,7 +50,7 @@ docker_build(){
 
 already_exists_depends(){
 
-	if podman images --format={{.Repository}} |grep -qE ^"$1"$;then
+	if podman images --format={{.Repository}} |grep -qE "/?$1"$;then
 		return 0
 	else
 		return 1
