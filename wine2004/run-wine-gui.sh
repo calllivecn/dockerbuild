@@ -11,10 +11,10 @@ done
 
 
 podman run \
-	-id --name winehqgui \
+	-id --name winegui \
 	-v /tmp/.X11-unix:/tmp/.X11-unix \
 	-e DISPLAY=$DISPLAY \
-	-e XMODIFIERS=$XMODIFIERS \
+	-e XMODIFIERS=@im=$XMODIFIERS \
 	-e GTK_IM_MODULE=$GTK_IM_MODULE \
 	-e QT_IM_MODULE=$QT_IM_MODULE \
 	-e AUDIO_GID="$(getent group audio |cut -d: -f3)" \
@@ -23,6 +23,5 @@ podman run \
 	-e GID="$(id -g)" \
 	--ipc=host \
 	--privileged \
-	$DEVICE_ARGS \
 	--entrypoint bash \
-	winehq
+	wine
