@@ -5,7 +5,7 @@
 
 set +e
 
-IMAGE_NAME=wine
+IMAGE_NAME=winehq
 
 cat >Dockerfile<<EOF
 FROM ubuntu-devel:latest
@@ -16,7 +16,7 @@ ARG APT_PROXY=$APT_PROXY
 
 COPY containers/ /tmp/
 
-RUN bash /tmp/RUN.sh \
+RUN bash /tmp/install-winehq.sh \
 && rm -rf /tmp/* || true
 
 WORKDIR /home/wine

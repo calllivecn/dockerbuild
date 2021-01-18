@@ -21,7 +21,7 @@ apt -y install ca-certificates gnupg2 iproute2 vim bash-completion less iputils-
 # 配置中文
 locale-gen en_US.UTF-8 zh_CN.UTF-8
 
-wget -O- https://dl.winehq.org/wine-builds/winehq.key| apt-key add -
+https_proxy="$APT_PROXY" wget -O- https://dl.winehq.org/wine-builds/winehq.key| apt-key add -
 
 echo "deb https://dl.winehq.org/wine-builds/ubuntu/ $(grep CODENAME /etc/lsb-release |cut -d'=' -f2) main" >> /etc/apt/sources.list.d/wine.list
 
