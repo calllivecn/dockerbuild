@@ -1,0 +1,8 @@
+[Unit]
+Description=certbot 定时任务 HOME: %h
+
+
+[Service]
+EnvironmentFile=%h/.certbot/http.proxy
+ExecStart=%h/.certbot/certbot.pyz renew --config-dir . --work-dir . --logs-dir . --post-hook "./update-ali-nginx.sh"
+WorkingDirectory=%h/.certbot/
