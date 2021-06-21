@@ -4,7 +4,7 @@
 
 VERSION_ID=$(grep VERSION_ID /etc/os-release |cut -d'"' -f2)
 
-echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/" | tee /etc/apt/sources.list.d/podman-stable.list
+echo "deb https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/ /" | tee /etc/apt/sources.list.d/podman-stable.list
 
 curl -L https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/stable/xUbuntu_${VERSION_ID}/Release.key | apt-key add -
 
