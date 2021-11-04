@@ -25,3 +25,4 @@ sshkey.pub
 *.swp
 depend-cache/
 *.pyz
+*.deb
