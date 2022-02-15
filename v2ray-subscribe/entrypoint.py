@@ -11,59 +11,57 @@ import base64
 import pprint
 import socket
 import subprocess
-from threading import Thread
 from urllib import request
 
-V2RAY_CONFIG_JSON="""\
-{
-  "log": {
-    "loglevel": "info"
-  },
-  "inbounds": [
-    {
-      "port": 9999,
-      "protocol": "http",
-      "sniffing": {
-        "enabled": true,
-        "destOverride": ["http", "tls"]
-      },
-      "settings": {
-        "auth": "noauth"
-      }
+V2RAY_CONFIG_JSON = {
+    "log": {
+        "loglevel": "info"
     },
-    {
-      "port": 10000,
-      "protocol": "socks",
-      "sniffing": {
-        "enabled": true,
-        "destOverride": ["http", "tls"]
-      },
-      "settings": {
-        "auth": "noauth"
-      }
-    }
-  ],
-  "outbounds": [
-    {
-      "protocol": "vmess",
-      "settings": {
-        "vnext": [
-          {
-            "address": "{VMESS_ADDR}",
-            "port": {VMESS_PORT},
-            "users": [
-              {
-                "id": "{VMESS_UUID}",
-                "alterId": {VMESS_AID}
-              }
-            ]
-          }
-        ]
-      }
-    }
-  ]
+    "inbounds": [
+        {
+            "port": 9999,
+            "protocol": "http",
+            "sniffing": {
+                "enabled": True,
+                "destOverride": ["http", "tls"]
+            },
+            "settings": {
+                "auth": "noauth"
+            }
+        },
+        {
+            "port": 10000,
+            "protocol": "socks",
+            "sniffing": {
+                "enabled": True,
+                "destOverride": ["http", "tls"]
+            },
+            "settings": {
+                "auth": "noauth"
+            }
+        }
+    ],
+    "outbounds": [
+        {
+            "protocol": "vmess",
+            "settings": {
+                "vnext": [
+                    {
+                        "address": "{VMESS_ADDR}",
+                        "port": "{VMESS_PORT}",
+                        "users": [
+                            {
+                                "id": "{VMESS_UUID}",
+                                "alterId": "{VMESS_AID}"
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    ]
 }
-"""
+
 
 def runtime(prompt):
     def decorator(func):
@@ -78,22 +76,25 @@ def runtime(prompt):
 
 
 def get(url):
-    req = request.Request(url, headers={"User-Agent": "curl/7.68.0"}, method="GET")
+    req = request.Request(
+        url, headers={"User-Agent": "curl/7.68.0"}, method="GET")
     data = request.urlopen(req)
     context = data.read()
     print("server url result:", context)
     return context
 
+
 def getenv(key):
-    value = os.environ.get(key) 
+    value = os.environ.get(key)
     if value is None:
         print(f"需要 {key} 环境变量")
         sys.exit(1)
     else:
         return value
 
-# 
-SERVER_URL = getenv("SERVER_URL") 
+
+#
+SERVER_URL = getenv("SERVER_URL")
 print("SERVER_URL:", SERVER_URL)
 
 # v2ray path
@@ -122,7 +123,7 @@ def getsubscription():
             try:
                 vmess = base64.b64decode(url[8:]).decode("utf-8")
             except Exception:
-                print("Error: base64.b64decode() --> {url} ")
+                print(f"Error: base64.b64decode() --> {url}")
                 continue
 
             if proxys.get("vmess"):
@@ -154,16 +155,36 @@ def test_connect_speed(vmess_list):
 def updatecfg(vmess_json):
     print("vmess_json:\n", vmess_json)
 
-    v2ray_config_json = V2RAY_CONFIG_JSON.format(vmess_json["add"], vmess_json["port"], vmess_json["id"], vmess_json["aid"])
+    outbounds = [
+        {
+            "protocol": "vmess",
+            "settings": {
+                "vnext": [
+                    {
+                        "address": vmess_json["add"],
+                        "port": int(vmess_json["port"]),
+                        "users": [
+                            {
+                                "id": vmess_json["id"],
+                                "alterId": vmess_json["aid"]
+                            }
+                        ]
+                    }
+                ]
+            }
+        }
+    ]
+
+    V2RAY_CONFIG_JSON["outbounds"] = outbounds
 
     with open(os.path.join(V2RAY_PATH, "config.json"), "w") as f:
-        f.write(v2ray_config_json)
+        f.write(json.dumps(V2RAY_CONFIG_JSON, ensure_ascii=False, indent=4))
 
 
-# run v2ray in thread
 def v2ray(config):
     subproc = subprocess.Popen(f"/v2ray/v2ray -config {config}")
     return subproc
+
 
 def reboot(subproc, config):
     subproc.terminate()
@@ -171,18 +192,31 @@ def reboot(subproc, config):
     return new_subproc
 
 
-
 def main():
 
-    proxys = getsubscription()
+    print(f"第 {UPDATE_INTERVAL} 小时更新节点信息")
 
-    speed_sorted = test_connect_speed(proxys["vmess"])
-    print("测试连接延时:")
-    pprint.pprint(speed_sorted)
+    v2ray_config = os.path.join(V2RAY_PATH, "config.json")
 
-    updatecfg(speed_sorted[0][1])
+    v2ray_process = "init"
 
-    v2ray(os.path.join(V2RAY_PATH, "config.json"))
+    while True:
+        proxys = getsubscription()
+
+        speed_sorted = test_connect_speed(proxys["vmess"])
+        print("测试连接延时:")
+        pprint.pprint(speed_sorted)
+
+        updatecfg(speed_sorted[0][1])
+
+        if isinstance(subprocess.Popen, v2ray_process):
+            reboot(v2ray_process, v2ray_config)
+        else:
+            v2ray_process = v2ray(v2ray_process)
+
+        days = 60*60 * UPDATE_INTERVAL
+        time.sleep(days)
+        print(f"{time.localtime()}: update node info")
 
 
 if __name__ == "__main__":
@@ -190,5 +224,3 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         print(".....")
-
-
