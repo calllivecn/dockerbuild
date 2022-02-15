@@ -9,17 +9,40 @@ v2ray_pkg="v2ray-linux-64.zip"
 v2ray_path="/v2ray"
 
 # 下载 jsonfmy.py
-wget -O /usr/local/bin/jsonfmt.py https://github.com/calllivecn/mytools/raw/master/jsonfmt.py
+#wget -O /usr/local/bin/jsonfmt.py https://github.com/calllivecn/mytools/raw/master/jsonfmt.py
 
-tag_name=$(wget -O- https://api.github.com/repos/v2ray/v2ray-core/releases/latest | jsonfmt.py -d tag_name)
+download(){
+tag_name_json="/tmp/tag_name.json"
 
-wget -O "/tmp/$v2ray_pkg" https://github.com/v2fly/v2ray-core/releases/download/$latest_tag/$v2ray_pkg
+wget -O $tag_name_json https://api.github.com/repos/v2ray/v2ray-core/releases/latest
 
-unzip -d "$v2ray_path" "/tmp/$v2ray_pkg"
 
-rm v "$v2ray_pkg"
-rm -v /run-build.sh
+cat > /tmp/json_tag_name.py<<EOF
+import json
+with open("$tag_name_json") as f:
+   data = json.load(f)
+print(data["tag_name"])
+EOF
+
+tag_name=$(python3 /tmp/json_tag_name.py)
+
+rm -v /tmp/json_tag_name.py
+
+wget -O "/tmp/$v2ray_pkg" https://github.com/v2fly/v2ray-core/releases/download/$tag_name/$v2ray_pkg
+
+}
+
+if [ -f /$v2ray_pkg ];then
+	unzip -d "$v2ray_path" "/$v2ray_pkg"
+else
+	download
+fi
+
+rm -v "/$v2ray_pkg"
 
 mv -v "$v2ray_path/config.json" "$v2ray_path/config.json-bak"
 
-chmod -v +x "$v2ray_path/v2ray" "$v2ray_path/v2ctl"
+chmod -v +x "$v2ray_path/v2ray"
+
+
+rm -rfv /data/

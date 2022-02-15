@@ -223,7 +223,8 @@ def main():
 
         days = 60*60 * UPDATE_INTERVAL
         time.sleep(days)
-        print(f"{time.localtime()}: 更新节点信息")
+        T = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        print(f"{T}: 更新节点信息")
 
 
 if __name__ == "__main__":

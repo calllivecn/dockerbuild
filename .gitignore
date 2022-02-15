@@ -26,3 +26,5 @@ sshkey.pub
 depend-cache/
 *.pyz
 *.deb
+
+v2ray-subscribe/data/
