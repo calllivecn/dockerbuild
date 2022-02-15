@@ -180,7 +180,11 @@ def updatecfg(vmess_json):
 
 
 def v2ray(config):
-    subproc = subprocess.Popen(f"/v2ray/v2ray -config {config}".split())
+    # v4.31.0 
+    #subproc = subprocess.Popen(f"/v2ray/v2ray -config {config}".split())
+
+    # v5.0
+    subproc = subprocess.Popen(f"/v2ray/v2ray run".split())
     return subproc
 
 
