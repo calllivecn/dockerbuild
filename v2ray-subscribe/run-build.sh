@@ -21,4 +21,4 @@ rm "$v2ray_pkg"
 
 mv -v "$v2ray_path/config.json" "$v2ray_path/config.json-bak"
 
-
+chmod +x "$v2ray_path/v2ray" "$v2ray_path/v2ctl"
