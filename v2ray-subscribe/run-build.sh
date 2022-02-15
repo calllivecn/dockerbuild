@@ -2,7 +2,7 @@
 # date 2022-02-14 22:29:15
 # author calllivecn <c-all@qq.com>
 
-set -x
+set -ex
 
 v2ray_pkg="v2ray-linux-64.zip"
 
@@ -15,10 +15,11 @@ tag_name=$(wget -O- https://api.github.com/repos/v2ray/v2ray-core/releases/lates
 
 wget -O "/tmp/$v2ray_pkg" https://github.com/v2fly/v2ray-core/releases/download/$latest_tag/$v2ray_pkg
 
-unzip -d "$v2ray_path" "$v2ray_pkg"
+unzip -d "$v2ray_path" "/tmp/$v2ray_pkg"
 
-rm "$v2ray_pkg"
+rm v "$v2ray_pkg"
+rm -v /run-build.sh
 
 mv -v "$v2ray_path/config.json" "$v2ray_path/config.json-bak"
 
-chmod +x "$v2ray_path/v2ray" "$v2ray_path/v2ctl"
+chmod -v +x "$v2ray_path/v2ray" "$v2ray_path/v2ctl"
