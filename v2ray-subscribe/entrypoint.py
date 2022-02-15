@@ -75,9 +75,9 @@ def runtime(prompt):
     return decorator
 
 
+@runtime("get subscription")
 def get(url):
-    req = request.Request(
-        url, headers={"User-Agent": "curl/7.68.0"}, method="GET")
+    req = request.Request(url, headers={"User-Agent": "curl/7.68.0"}, method="GET")
     data = request.urlopen(req)
     context = data.read()
     print("server url result:", context)
@@ -104,9 +104,8 @@ V2RAY_PATH = os.environ.get("V2RAY_PATH", "/v2ray")
 UPDATE_INTERVAL = int(os.environ.get("UPDATE_INTERVAL", "8"))
 
 
-@runtime("get subscription")
-def getsubscription():
-    proxy_urls = base64.b64decode(get(SERVER_URL)).decode("utf-8")
+def getsubscription(context):
+    proxy_urls = base64.b64decode(context).decode("utf-8")
     proxys = {}
 
     for url in proxy_urls.split("\n"):
@@ -153,7 +152,6 @@ def test_connect_speed(vmess_list):
 
 
 def updatecfg(vmess_json):
-    print("vmess_json:\n", vmess_json)
 
     outbounds = [
         {
@@ -182,7 +180,7 @@ def updatecfg(vmess_json):
 
 
 def v2ray(config):
-    subproc = subprocess.Popen(f"/v2ray/v2ray -config {config}")
+    subproc = subprocess.Popen(f"/v2ray/v2ray -config {config}".split())
     return subproc
 
 
@@ -198,25 +196,34 @@ def main():
 
     v2ray_config = os.path.join(V2RAY_PATH, "config.json")
 
-    v2ray_process = "init"
+    v2ray_process = ""
+    last_server_info = ""
 
     while True:
-        proxys = getsubscription()
+        server_info = get(SERVER_URL)
 
-        speed_sorted = test_connect_speed(proxys["vmess"])
-        print("测试连接延时:")
-        pprint.pprint(speed_sorted)
+        if last_server_info == server_info:
+            print("server 信息没更新，不重启")
 
-        updatecfg(speed_sorted[0][1])
-
-        if isinstance(subprocess.Popen, v2ray_process):
-            reboot(v2ray_process, v2ray_config)
         else:
-            v2ray_process = v2ray(v2ray_process)
+            proxys = getsubscription(server_info)
+
+            speed_sorted = test_connect_speed(proxys["vmess"])
+            print("测试连接延时:")
+            pprint.pprint(speed_sorted)
+
+            updatecfg(speed_sorted[0][1])
+
+            if subprocess.Popen == type(v2ray_process):
+                reboot(v2ray_process, v2ray_config)
+            else:
+                v2ray_process = v2ray(v2ray_config)
+
+            last_server_info = server_info
 
         days = 60*60 * UPDATE_INTERVAL
         time.sleep(days)
-        print(f"{time.localtime()}: update node info")
+        print(f"{time.localtime()}: 更新节点信息")
 
 
 if __name__ == "__main__":

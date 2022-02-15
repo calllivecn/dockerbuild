@@ -5,7 +5,7 @@
 - 启动方式：
 
 ```shell
-podman run -d --name v2ray -p 9999:9999 -p 10000:10000 -e SUB_URL=<$your subscription address>
+podman run -d --name v2ray -p 9999:9999 -p 10000:10000 -e SERVER_URL=https://v2ray.server.com/
 ro
-podman run -d --name v2ray -p <http_proxy port>:9999 -p <socks5_proxy port>:10000 -e SUB_URL=<$your subscription address> -e SUB_INTERVAL=<unit hour>
+podman run -d --name v2ray -p <http_proxy port>:9999 -p <socks5_proxy port>:10000 -e SERVIER_URL=<$your subscription address> -e UPDATE_INTERVAL=<unit hour>
 ```
