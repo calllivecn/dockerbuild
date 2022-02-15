@@ -45,4 +45,4 @@ mv -v "$v2ray_path/config.json" "$v2ray_path/config.json-bak"
 chmod -v +x "$v2ray_path/v2ray"
 
 
-rm -rfv /data/
+rm -rfv /run-build.sh
