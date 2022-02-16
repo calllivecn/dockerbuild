@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3 -u
 # coding=utf-8
 # date 2022-02-15 13:17:44
 # author calllivecn <c-all@qq.com>
@@ -15,7 +15,8 @@ from urllib import request
 
 V2RAY_CONFIG_JSON = {
     "log": {
-        "loglevel": "info"
+        "loglevel": "info",
+        "file": "v2ray.logs"
     },
     "inbounds": [
         {
@@ -66,6 +67,8 @@ V2RAY_CONFIG_JSON = {
 def runtime(prompt):
     def decorator(func):
         def warp(*args, **kwarg):
+            T = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            print(f"{T}: 更新节点信息")
             t1 = time.time()
             result = func(*args, **kwarg)
             t2 = time.time()
@@ -95,7 +98,7 @@ def getenv(key):
 
 #
 SERVER_URL = getenv("SERVER_URL")
-print("SERVER_URL:", SERVER_URL)
+#print("SERVER_URL:", SERVER_URL)
 
 # v2ray path
 V2RAY_PATH = os.environ.get("V2RAY_PATH", "/v2ray")
@@ -212,11 +215,16 @@ def main():
         else:
             proxys = getsubscription(server_info)
 
-            speed_sorted = test_connect_speed(proxys["vmess"])
-            print("测试连接延时:")
-            pprint.pprint(speed_sorted)
-
-            updatecfg(speed_sorted[0][1])
+            try:
+                speed_sorted = test_connect_speed(proxys["vmess"])
+            except Exception as e:
+                print("测试连异常:", e)
+                print("使用第一个vmess地址")
+                updatecfg(proxys["vmess"][0][1])
+            else:
+                print("测试连接延时:")
+                pprint.pprint(speed_sorted)
+                updatecfg(speed_sorted[0][1])
 
             if subprocess.Popen == type(v2ray_process):
                 reboot(v2ray_process, v2ray_config)
