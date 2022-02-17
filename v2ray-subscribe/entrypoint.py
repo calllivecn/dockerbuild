@@ -16,7 +16,7 @@ from urllib import request
 V2RAY_CONFIG_JSON = {
     "log": {
         "loglevel": "info",
-        "file": "v2ray.logs"
+        "logs": "v2ray.logs"
     },
     "inbounds": [
         {
@@ -95,6 +95,9 @@ def getenv(key):
     else:
         return value
 
+# base64 补上=号
+def check_b64(data):
+    return data + b"=" * (4 - len(data) % 4)
 
 #
 SERVER_URL = getenv("SERVER_URL")
@@ -108,22 +111,22 @@ UPDATE_INTERVAL = int(os.environ.get("UPDATE_INTERVAL", "8"))
 
 
 def getsubscription(context):
-    proxy_urls = base64.b64decode(context).decode("utf-8")
+    proxy_urls = base64.b64decode(context)
     proxys = {}
 
-    for url in proxy_urls.split("\n"):
+    for url in proxy_urls.split(b"\n"):
 
-        if url.startswith("ss://"):
-            continue
+        if url.startswith(b"ss://"):
+            print("目前先不支持ss", url)
             # ss = base64.b64decode(url[5:].encode("ascii")).decode("ascii")
             # if proxys.get("ss"):
             #     proxys["ss"].append(ss)
             # else:
             #     proxys["ss"] = [ss]
 
-        if url.startswith("vmess://"):
+        if url.startswith(b"vmess://"):
             try:
-                vmess = base64.b64decode(url[8:]).decode("utf-8")
+                vmess = base64.b64decode(check_b64(url[8:]))
             except Exception:
                 print(f"Error: base64.b64decode() --> {url}")
                 continue
