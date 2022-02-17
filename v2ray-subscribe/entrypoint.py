@@ -16,7 +16,8 @@ from urllib import request
 V2RAY_CONFIG_JSON = {
     "log": {
         "loglevel": "info",
-        "logs": "v2ray.logs"
+        "access": "/v2ray-access.logs",
+        "error": "/v2ray-error.logs"
     },
     "inbounds": [
         {
@@ -124,7 +125,7 @@ def getsubscription(context):
             # else:
             #     proxys["ss"] = [ss]
 
-        if url.startswith(b"vmess://"):
+        elif url.startswith(b"vmess://"):
             try:
                 vmess = base64.b64decode(check_b64(url[8:]))
             except Exception:
