@@ -10,6 +10,7 @@ import json
 import base64
 import pprint
 import socket
+import logging
 import subprocess
 from urllib import request
 
@@ -64,16 +65,33 @@ V2RAY_CONFIG_JSON = {
     ]
 }
 
+def getlogger(level=logging.INFO):
+    fmt = logging.Formatter("%(asctime)s %(filename)s:%(lineno)d %(message)s", datefmt="%Y-%m-%d-%H:%M:%S")
+
+    stream = logging.StreamHandler(sys.stdout)
+    stream.setFormatter(fmt)
+
+    fp = logging.FileHandler("v2ray-manager.logs")
+    fp.setFormatter(fmt)
+
+    logger = logging.getLogger("AES")
+    logger.setLevel(level)
+    logger.addHandler(stream)
+    logger.addHandler(fp)
+    return logger
+
+
+logger = getlogger()
+
 
 def runtime(prompt):
     def decorator(func):
         def warp(*args, **kwarg):
-            T = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-            print(f"{T}: 更新节点信息")
+            logger.info(f"更新节点信息")
             t1 = time.time()
             result = func(*args, **kwarg)
             t2 = time.time()
-            print(f"{prompt}  运行时间: {t2-t1}/s")
+            logger.info(f"{prompt}  运行时间: {t2-t1}/s")
             return result
         return warp
     return decorator
@@ -84,14 +102,14 @@ def get(url):
     req = request.Request(url, headers={"User-Agent": "curl/7.68.0"}, method="GET")
     data = request.urlopen(req)
     context = data.read()
-    print("server url result:", context)
+    logger.info(f"server url result: {context}")
     return context
 
 
 def getenv(key):
     value = os.environ.get(key)
     if value is None:
-        print(f"需要 {key} 环境变量")
+        logger.info(f"需要 {key} 环境变量")
         sys.exit(1)
     else:
         return value
@@ -102,7 +120,7 @@ def check_b64(data):
 
 #
 SERVER_URL = getenv("SERVER_URL")
-#print("SERVER_URL:", SERVER_URL)
+logger.debug(f"SERVER_URL: {SERVER_URL}")
 
 # v2ray path
 V2RAY_PATH = os.environ.get("V2RAY_PATH", "/v2ray")
@@ -118,7 +136,7 @@ def getsubscription(context):
     for url in proxy_urls.split(b"\n"):
 
         if url.startswith(b"ss://"):
-            print("目前先不支持ss", url)
+            logger.info(f"目前先不支持ss: {url}")
             # ss = base64.b64decode(url[5:].encode("ascii")).decode("ascii")
             # if proxys.get("ss"):
             #     proxys["ss"].append(ss)
@@ -129,7 +147,7 @@ def getsubscription(context):
             try:
                 vmess = base64.b64decode(check_b64(url[8:]))
             except Exception:
-                print(f"Error: base64.b64decode() --> {url}")
+                logger.info(f"Error: base64.b64decode() --> {url}")
                 continue
 
             if proxys.get("vmess"):
@@ -138,7 +156,7 @@ def getsubscription(context):
                 proxys["vmess"] = [json.loads(vmess)]
 
         else:
-            print(f"未知协议: {url}", file=sys.stderr)
+            logger.warn(f"未知协议: {url}", file=sys.stderr)
 
     return proxys
 
@@ -203,7 +221,7 @@ def reboot(subproc, config):
 
 def main():
 
-    print(f"第 {UPDATE_INTERVAL} 小时更新节点信息")
+    logger.info(f"第{UPDATE_INTERVAL}小时更新节点信息")
 
     v2ray_config = os.path.join(V2RAY_PATH, "config.json")
 
@@ -214,7 +232,7 @@ def main():
         server_info = get(SERVER_URL)
 
         if last_server_info == server_info:
-            print("server 信息没更新，不重启")
+            logger.info("server 信息没更新，不重启")
 
         else:
             proxys = getsubscription(server_info)
@@ -222,12 +240,12 @@ def main():
             try:
                 speed_sorted = test_connect_speed(proxys["vmess"])
             except Exception as e:
-                print("测试连异常:", e)
-                print("使用第一个vmess地址")
+                logger.info(f"测试连异常: {e}")
+                logger.info("使用第一个vmess地址")
                 updatecfg(proxys["vmess"][0][1])
             else:
-                print("测试连接延时:")
-                pprint.pprint(speed_sorted)
+                logger.info("测试连接延时:")
+                logger.info(pprint.pformat(speed_sorted))
                 updatecfg(speed_sorted[0][1])
 
             if subprocess.Popen == type(v2ray_process):
@@ -240,11 +258,11 @@ def main():
         days = 60*60 * UPDATE_INTERVAL
         time.sleep(days)
         T = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-        print(f"{T}: 更新节点信息")
+        logger.info(f"{T}: 更新节点信息")
 
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print(".....")
+        logger.info(".....")
