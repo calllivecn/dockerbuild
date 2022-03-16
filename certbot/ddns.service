@@ -1,0 +1,12 @@
+[Unit]
+Description=IPv6 DDNS 任务 HOME: %h
+
+
+[Service]
+# 可以这样配置代理
+#EnvironmentFile=%h/.ddns/http.proxy
+ExecStart=%h/.ddns/ddns.pyz
+WorkingDirectory=%h/.ddns/
+
+[Install]
+WantedBy=default.target
