@@ -4,26 +4,20 @@
 # author calllivecn <c-all@qq.com>
 
 
-import json
-from multiprocessing.sharedctypes import Value
 import os
 import sys
 import time
 import socket
 import logging
 import argparse
-import ipaddress
 import configparser
 from pathlib import Path
 
 
 # pip install alibabacloud_alidns20150109==2.0.2
-from Tea.core import TeaCore
-
 from alibabacloud_alidns20150109.client import Client as Alidns20150109Client
 from alibabacloud_tea_openapi import models as open_api_models
 from alibabacloud_alidns20150109 import models as alidns_20150109_models
-from alibabacloud_tea_util.client import Client as UtilClient 
 
 
 """
@@ -234,6 +228,10 @@ class AliDDNS:
 
 
 CONF="""\
+[DDNS]
+# 检查间隔时间单位秒
+Interval=180
+
 [Ali]
 # 阿里云
 AccessKeyId=
@@ -281,6 +279,7 @@ def callddns(conf):
     ali = conf["Ali"]
 
     domain = conf["DomainName"]
+    dns = ".".join([domain["RR"], domain["Domain"]])
     
     ipv6 = get_self_ipv6()
     logger.info(f"获取本机ipv6地址：{ipv6}")
@@ -323,7 +322,6 @@ def callddns(conf):
         logger.info("与缓存相同，不用更新.")
     else:
         alidns = AliDDNS(ali["AccessKeyId"], ali["AccessKeySecret"])
-        dns = ".".join([domain["RR"], domain["Domain"]])
         logger.info(f"更新ipv6: {dns} --> {ipv6}")
         alidns.updateDonameRecord(dns_record_id, domain["RR"], domain["Type"], ipv6)
 
@@ -343,10 +341,12 @@ def main():
 
     conf = readcfg()
 
+    INTERVAL = conf.getint("DDNS", "Interval")
+
     while True:
         logger.info(f"检查和更新...")
         callddns(conf)
-        logger.info("sleep ...")
+        logger.info(f"sleep({INTERVAL}) ...")
         time.sleep(90)
 
 
