@@ -10,6 +10,7 @@ import time
 import socket
 import logging
 import argparse
+import traceback
 import configparser
 from pathlib import Path
 
@@ -34,7 +35,7 @@ def getlogger(level=logging.INFO):
 
     # consoleHandler.setLevel(logging.DEBUG)
     logger.addHandler(consoleHandler)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(level)
     return logger
 
 logger = getlogger()
@@ -303,7 +304,7 @@ def callddns(conf):
         logger.debug(f"写入缓存: {dns_record_id} ")
         # write cache
         with open(CACHE, "w") as f:
-            f.write("\n".join([ipv6, dns_record_id]))
+            f.write(" ".join([ipv6, dns_record_id]))
         
         return None
 
@@ -311,19 +312,27 @@ def callddns(conf):
     if CACHE.lstat().st_size <= 4096:
         with open(CACHE, "r") as f:
             cache = f.read()
-        ip_cache , dns_record_id = cache.split("\n")
-    else:
-        logger.warning("cache 不存在，或者文件大小不正常。")
 
-        raise ValueError("cache 不存在，或者文件大小不正常。")
+        logger.debug(f"cache值：{cache}")
+        ip_cache , dns_record_id = cache.split(" ")
+
+    else:
+        logger.warning(f"{CACHE} 不存在，或者文件大小不正常。")
+
+        raise ValueError(f"{CACHE} 不存在，或者文件大小不正常。")
     
     
     if ipv6 == ip_cache:
         logger.info("与缓存相同，不用更新.")
     else:
         alidns = AliDDNS(ali["AccessKeyId"], ali["AccessKeySecret"])
+
         logger.info(f"更新ipv6: {dns} --> {ipv6}")
         alidns.updateDonameRecord(dns_record_id, domain["RR"], domain["Type"], ipv6)
+
+        logger.debug(f"更新cache: {ipv6} {dns_record_id}")
+        with open(CACHE, "w") as f:
+            f.write(" ".join([ipv6, dns_record_id]))
 
 
 def main():
@@ -345,7 +354,13 @@ def main():
 
     while True:
         logger.info(f"检查和更新...")
-        callddns(conf)
+
+        try:
+            callddns(conf)
+        except Exception:
+            logger.warning(f"异常:")
+            traceback.print_exc()
+
         logger.info(f"sleep({INTERVAL}) ...")
         time.sleep(90)
 
