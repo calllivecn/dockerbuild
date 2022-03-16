@@ -4,6 +4,8 @@ etcd/etcdctl
 confd/confd
 
 __pycache__/
+*.cache
+*.conf
 
 */jdk8/
 */jre8/

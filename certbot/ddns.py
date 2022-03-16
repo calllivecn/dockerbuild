@@ -4,20 +4,46 @@
 # author calllivecn <c-all@qq.com>
 
 
+import json
+from multiprocessing.sharedctypes import Value
+import os
 import sys
+import time
 import socket
+import logging
 import argparse
+import ipaddress
 import configparser
+from pathlib import Path
 
 
 # pip install alibabacloud_alidns20150109==2.0.2
+from Tea.core import TeaCore
+
 from alibabacloud_alidns20150109.client import Client as Alidns20150109Client
 from alibabacloud_tea_openapi import models as open_api_models
 from alibabacloud_alidns20150109 import models as alidns_20150109_models
+from alibabacloud_tea_util.client import Client as UtilClient 
+
 
 """
 文档地址：https://next.api.aliyun.com/api/Alidns/2015-01-09/AddDomainRecord
 """
+
+def getlogger(level=logging.INFO):
+    logger = logging.getLogger("logger")
+    formatter = logging.Formatter("%(asctime)s %(filename)s:%(funcName)s:%(lineno)d %(levelname)s: %(message)s", datefmt="%Y-%m-%d-%H:%M:%S")
+    consoleHandler = logging.StreamHandler(stream=sys.stdout)
+    #logger.setLevel(logging.DEBUG)
+
+    consoleHandler.setFormatter(formatter)
+
+    # consoleHandler.setLevel(logging.DEBUG)
+    logger.addHandler(consoleHandler)
+    logger.setLevel(logging.INFO)
+    return logger
+
+logger = getlogger()
 
 
 def get_self_ip():
@@ -26,20 +52,22 @@ def get_self_ip():
     """
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.connect(("223.5.5.5", 2022))
-    addr = sock.getsockname()
-    print(addr)
+    addr = sock.getsockname()[0]
+    sock.close()
+    logger.debug(addr)
     return addr
 
 
 def get_self_ipv6():
     """
     这样可以拿到， 默认出口ip。
-    不过ipv6拿到的是临时动态地址。 不好直接做ddns。
+    不过ipv6拿到的是临时动态地址。 直接做ddns, 会频繁更新。
     """
     sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
     sock.connect(("2400:3200:baba::1", 2022))
-    addr = sock.getsockname()
-    print(addr)
+    addr = sock.getsockname()[0]
+    sock.close()
+    logger.debug(addr)
     return addr
 
 # print(get_self_ip())
@@ -93,9 +121,9 @@ class AliDDNS:
         )
 
         # 复制代码运行请自行打印 API 的返回值
-        jsondata = self.client.add_domain_record(add_domain_record_request)
+        response = self.client.add_domain_record(add_domain_record_request)
 
-        return jsondata
+        return response.body.to_map()
 
     def updateDonameRecord(self, record_id, rr, typ, value):
         """
@@ -119,10 +147,49 @@ class AliDDNS:
             value=value
         )
         # 复制代码运行请自行打印 API 的返回值
-        jsondata = self.client.update_domain_record(
-            update_domain_record_request)
+        response = self.client.update_domain_record(update_domain_record_request)
 
-        return jsondata
+        return response.body.to_map()
+    
+    def describe_sub_domain(self, sub_domain, typ):
+        """
+        return:
+        {
+            "TotalCount": 1,
+            "RequestId": "5AA5CC8A-4675-5B92-898A-5FBCC742E975",
+            "PageSize": 20,
+            "DomainRecords": {
+                "Record": [
+                    {
+                        "RR": "route",
+                        "Line": "default",
+                        "Status": "ENABLE",
+                        "Locked": false,
+                        "Type": "AAAA",
+                        "DomainName": "calllive.cc",
+                        "Value": "240e:3b5:3013:f760:7942:d2cd:5cc4:2aa1",
+                        "RecordId": "751945591127363584",
+                        "TTL": 600,
+                        "Weight": 1
+                    }
+                ]
+            },
+            "PageNumber": 1
+        }
+        """
+        describe_sub_domain_records_request = alidns_20150109_models.DescribeSubDomainRecordsRequest(
+            sub_domain=sub_domain,
+            type=typ
+        )
+        # 复制代码运行请自行打印 API 的返回值
+        response = self.client.describe_sub_domain_records(describe_sub_domain_records_request)
+        # logger.debug(f"response type: {type(response)}")
+        # logger.debug(f"response dir(): {dir(response)}")
+        # logger.debug(f"response to_map(): {response.to_map()}")
+        # logger.debug(f"response body: {response.body.to_map()}")
+        # logger.debug(f"response.body type: {type(response.body)}")
+        # jsondata = UtilClient.to_jsonstring(TeaCore.to_map(response))
+        return response.body.to_map()
 
     def descrbieDomainRecord(self, domain_name, rrkey_word, typ):
         """
@@ -161,14 +228,126 @@ class AliDDNS:
             type=typ
         )
         # 复制代码运行请自行打印 API 的返回值
-        jsondata = self.client.describe_domain_records(
-            describe_domain_records_request)
+        response = self.client.describe_domain_records(describe_domain_records_request)
 
-        return jsondata
+        return response.body.to_map()
+
+
+CONF="""\
+[Ali]
+# 阿里云
+AccessKeyId=
+AccessKeySecret=
+
+[DomainName]
+# 例如域名是：dns.example.com
+# RR: dns
+RR=
+# 记录类型, A: ipv4, AAAA: ipv6, TXT: 文本记录
+Type=
+# Domain: example.com
+Domain=
+
+[Server]
+# 其他轻客户端的key (预计使用很少的 bash 就可以实现; 目前还没实现。)
+clientkey1=
+clientkey2=
+"""
+
+PYZ_PATH = Path(sys.argv[0])
+PWD = PYZ_PATH.parent
+
+name, ext = os.path.splitext(PYZ_PATH.name)
+
+CFG = PWD / (name + ".conf")
+CACHE = PWD / (name + ".cache")
+
+def readcfg():
+    if CFG.exists() and CFG.is_file():
+        conf = configparser.ConfigParser()
+        conf.read(str(CFG))
+    else:
+        with open(CFG, "w") as f:
+            f.write(CONF)
+        
+        logger.warning(f"需要配置{CFG}文件")
+        sys.exit(1)
+    
+    return conf
+
+
+def callddns(conf):
+
+    ali = conf["Ali"]
+
+    domain = conf["DomainName"]
+    
+    ipv6 = get_self_ipv6()
+    logger.info(f"获取本机ipv6地址：{ipv6}")
+
+    if not CACHE.is_file():
+        logger.warning(f"{CACHE} 不存在, 需要第一次更新。")
+
+        alidns = AliDDNS(ali["AccessKeyId"], ali["AccessKeySecret"])
+
+        result = alidns.describe_sub_domain(".".join([domain["rr"], domain["Domain"]]), domain["Type"])
+
+        logger.debug(f"sub_domain_record: {result}, type: {type(result)}")
+
+        dns_record_id = result["DomainRecords"]["Record"][0]["RecordId"]
+
+        logger.debug(f"dns_record_id: {dns_record_id}")
+        
+        logger.info(f"更新ipv6: {dns} --> {ipv6}")
+        alidns.updateDonameRecord(dns_record_id, domain["RR"], domain["Type"], ipv6)
+
+        logger.debug(f"写入缓存: {dns_record_id} ")
+        # write cache
+        with open(CACHE, "w") as f:
+            f.write("\n".join([ipv6, dns_record_id]))
+        
+        return None
+
+
+    if CACHE.lstat().st_size <= 4096:
+        with open(CACHE, "r") as f:
+            cache = f.read()
+        ip_cache , dns_record_id = cache.split("\n")
+    else:
+        logger.warning("cache 不存在，或者文件大小不正常。")
+
+        raise ValueError("cache 不存在，或者文件大小不正常。")
+    
+    
+    if ipv6 == ip_cache:
+        logger.info("与缓存相同，不用更新.")
+    else:
+        alidns = AliDDNS(ali["AccessKeyId"], ali["AccessKeySecret"])
+        dns = ".".join([domain["RR"], domain["Domain"]])
+        logger.info(f"更新ipv6: {dns} --> {ipv6}")
+        alidns.updateDonameRecord(dns_record_id, domain["RR"], domain["Type"], ipv6)
 
 
 def main():
-    pass
+    parse = argparse.ArgumentParser(
+        usage="%(prog)s",
+        description="使用阿里 DNS 做 DDNS.",
+    )
+
+    parse.add_argument("--debug", action="store_true", help=argparse.SUPPRESS)
+
+    args = parse.parse_args()
+
+    if args.debug:
+        logger.setLevel(logging.DEBUG)
+
+    conf = readcfg()
+
+    while True:
+        logger.info(f"检查和更新...")
+        callddns(conf)
+        logger.info("sleep ...")
+        time.sleep(90)
 
 
 if __name__ == '__main__':
