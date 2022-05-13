@@ -181,3 +181,14 @@ class AliDDNS:
 
         return response.body.to_map()
 
+
+
+if __name__ == "__main__":
+    import sys
+    import pprint
+    alidns = AliDDNS(sys.argv[1], sys.argv[2])
+
+    # 参数是： "none.calllive.cc", "AAAA"
+    # result = alidns.describe_sub_domain(sys.argv[3], sys.argv[4])
+    result = alidns.addDomainRecord("calllive.cc", "ddns-test2", "A", "127.0.1.2")
+    pprint.pprint(result)

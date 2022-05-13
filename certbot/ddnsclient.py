@@ -9,6 +9,7 @@ import sys
 import time
 import socket
 import argparse
+import logging
 from pathlib import Path
 
 from utils import (
@@ -19,7 +20,7 @@ from utils import (
 )
 
 CONF="""\
-[client]
+[Client]
 # 可以是域名，和ipv6
 Address=
 Port=2022
@@ -27,11 +28,14 @@ Port=2022
 # 检查间隔时间单位秒
 Interval=180
 
-# 在服务商端是唯一的
+# 在服务端需要是唯一的
 ClientId=
 
 # client 的 secret
 Secret=
+
+# server 的 secret
+ServerSecret=
 
 # 等待ACK的超时时间
 TimeOut=10
@@ -46,8 +50,6 @@ PWD = PYZ_PATH.parent
 name, ext = os.path.splitext(PYZ_PATH.name)
 
 CFG = PWD / (name + ".conf")
-CACHE = PWD / (name + ".cache")
-
 
 def makesock(addr, port=2022):
     # 自动检测是ipv4 ipv6
@@ -68,7 +70,7 @@ def makesock(addr, port=2022):
     return sock
 
 
-def client(addr, port, id, secret, retry, timeout):
+def client(addr, port, id, secret, server_secret, retry, timeout):
     req = Request()
     buf = req.make(id, secret)
 
@@ -76,17 +78,18 @@ def client(addr, port, id, secret, retry, timeout):
     sock.settimeout(timeout)
 
     for i in range(1, retry+1):
+        logger.warning(f"retry {i}/{retry}")
         sock.sendto(buf, (addr, port))
         try:
-            data_ack, addr = sock.recvfrom(512)
+            data_ack, c_addr = sock.recvfrom(512)
         except TimeoutError:
-            logger.warning(f"retry {i}/{retry}")
+            continue
         
-        if req.verifyAck(data_ack, secret):
-            logger.info(f"{addr}: update ok")
+        if req.verifyAck(data_ack, server_secret):
+            logger.info(f"Server:{c_addr[0]}  verify ACK ok")
             break
         else:
-            logger.warning(f"{addr}: 收到的回复验证不通过！可能正在被探测。")
+            logger.warning(f"{c_addr[0]}: 收到的回复验证不通过！可能正在被探测。")
     
     sock.close()
 
@@ -96,13 +99,13 @@ def main():
     parse = argparse.ArgumentParser(
         usage="%(prog)s",
         description="DDNS client, "
-        f"使用 {CFG} 为配置文件, "
-        f" {CACHE} 为缓存文件, ",
+        f"使用 {CFG} 为配置文件",
         epilog="",
     )
 
+    parse.add_argument("--debug", action="store_true", help=argparse.SUPPRESS)
     # parse.add_argument("--config", required=True, help="配置文件")
-    parse.add_argument("--parse", help=argparse.SUPPRESS)
+    parse.add_argument("--parse", action="store_true", help=argparse.SUPPRESS)
 
     args = parse.parse_args()
 
@@ -110,18 +113,26 @@ def main():
         print(args)
         sys.exit(0)
     
+    if args.debug:
+        logger.setLevel(logging.DEBUG)
+    
     cfg = readcfg(CFG, CONF)
 
     addr = cfg.get("Client", "Address")
     port = cfg.getint("Client", "Port")
+
     interval = cfg.getint("Client", "Interval")
-    clientid = cfg.get("Client", "ClientId")
+    clientid = cfg.getint("Client", "ClientId")
+
     secret = cfg.get("Client", "Secret")
+    server_secret = cfg.get("Client", "ServerSecret")
+
     timeout = cfg.getfloat("Client", "TimeOut")
     retry = cfg.getint("Client", "Retry")
+    
 
     while True:
-        client(addr, port, clientid, secret, retry, timeout)
+        client(addr, port, clientid, secret, server_secret, retry, timeout)
         logger.info(f"sleep({interval}) ...")
         time.sleep(interval)
 
