@@ -122,6 +122,7 @@ def main():
 
     while True:
         client(addr, port, clientid, secret, retry, timeout)
+        logger.info(f"sleep({interval}) ...")
         time.sleep(interval)
 
 

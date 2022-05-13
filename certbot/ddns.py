@@ -171,7 +171,7 @@ def main():
             traceback.print_exc()
 
         logger.info(f"sleep({INTERVAL}) ...")
-        time.sleep(90)
+        time.sleep(INTERVAL)
 
 
 if __name__ == '__main__':
