@@ -78,7 +78,7 @@ def client(addr, port, id, secret, server_secret, retry, timeout):
     sock.settimeout(timeout)
 
     for i in range(1, retry+1):
-        logger.warning(f"retry {i}/{retry}")
+        logger.info(f"retry {i}/{retry}")
         sock.sendto(buf, (addr, port))
         try:
             data_ack, c_addr = sock.recvfrom(512)
