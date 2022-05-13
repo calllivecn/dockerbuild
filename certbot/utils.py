@@ -224,26 +224,40 @@ class AliDDNS:
 
         return response.body.to_map()
 
+
 class DDNSPacketError(Exception):
     pass
 
-class Request:
 
-    def make(self, id, secret):
+class Request:
+    """
+    client:
+    make(id_, secret_client) --> sendto() --> recv() -- verifyack(buf, secret_secret)
+    server:
+    recv() --> get_id_conf --> frombuf(buf) --> verify(secret_client) --> ack(secret_server) --> sendto()
+    """
+
+    def make(self, id_, secret):
+        """
+        secret: client secret
+        """
         cur = int(time.time())
 
-        id_byte = struct.pack("!I", id)
+        id_byte = struct.pack("!I", id_)
 
         sha = hashlib.sha256(
             id_byte + secret.encode("ascii") + struct.pack("!Q", cur)
         )
 
-        return id_byte + sha.digest()
+        self.__buf = id_byte + sha.digest()
+        return self.__buf
 
     def frombuf(self, buf):
 
         if len(buf) != (4+32):
             raise DDNSPacketError("packet invalid")
+        
+        self.__buf = buf
 
         self.id_byte = buf[:4]
         self.id_client = struct.unpack("!I", self.id_byte)
@@ -263,3 +277,27 @@ class Request:
             return True
         else:
             return False
+
+    def ack(self, secret):
+        """
+        secret: server secret
+        """
+        sha256 = hashlib.sha256(
+            self.__buf + secret.encode("ascii")
+        )
+        return sha256.digest()
+
+    def verifyAck(self, buf, secret):
+        """
+        secret: server secret
+        """
+        sha256 = hashlib.sha256(
+            self.__buf + secret.encode("ascii")
+        )
+
+        if buf == sha256.digest():
+            return True
+        else:
+            return False
+
+
