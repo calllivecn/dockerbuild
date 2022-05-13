@@ -15,18 +15,16 @@ import argparse
 import traceback
 import configparser
 from pathlib import Path
+from threading import THread
 
+from aliyunlib import AliDDNS
 
 from utils import (
     logger,
+    readcfg,
     get_self_ipv6,
-    AliDDNS,
     DDNSPacketError,
 )
-
-
-def server():
-    pass
 
 
 CONF="""\
@@ -52,19 +50,22 @@ Domain=
 
 [Clients]
 # 其他轻客户端的UUID (预计使用很少的 bash 就可以实现; bash 不行，不能接收UDP数据包。。。还是需要用golang和py写)
-clientID1=
-clientID2=
+ClientID1=
+ClientID2=
 # 更多client一直添加...
 
 
 [clientID1]
 # client 的 secret
-secret=
+Secret=
+
 # 例如域名是：dns.example.com
 # RR: dns
 RR=
+
 # 记录类型, A: ipv4, AAAA: ipv6, TXT: 文本记录
 Type=
+
 # Domain: example.com
 Domain=
 
@@ -77,20 +78,6 @@ name, ext = os.path.splitext(PYZ_PATH.name)
 
 CFG = PWD / (name + ".conf")
 CACHE = PWD / (name + ".cache")
-
-def readcfg():
-    if CFG.exists() and CFG.is_file():
-        conf = configparser.ConfigParser()
-        conf.read(str(CFG))
-    else:
-        with open(CFG, "w") as f:
-            f.write(CONF)
-        
-        logger.warning(f"需要配置{CFG}文件")
-        sys.exit(1)
-    
-    return conf
-
 
 def callddns(conf):
 
@@ -152,6 +139,11 @@ def callddns(conf):
             f.write(" ".join([ipv6, dns_record_id]))
 
 
+def server(CFG, ):
+    pass
+
+
+
 def main():
     parse = argparse.ArgumentParser(
         usage="%(prog)s",
@@ -165,7 +157,7 @@ def main():
     if args.debug:
         logger.setLevel(logging.DEBUG)
 
-    conf = readcfg()
+    conf = readcfg(CFG, CONF)
 
     INTERVAL = conf.getint("DDNS", "Interval")
 
