@@ -5,9 +5,11 @@
 
 
 import os
+import io
 import sys
 import time
 import socket
+import struct
 import logging
 import argparse
 import traceback
@@ -26,7 +28,7 @@ from alibabacloud_alidns20150109 import models as alidns_20150109_models
 """
 
 def getlogger(level=logging.INFO):
-    logger = logging.getLogger("logger")
+    logger = logging.getLogger("ddns")
     formatter = logging.Formatter("%(asctime)s %(levelname)s %(filename)s:%(funcName)s:%(lineno)d %(message)s", datefmt="%Y-%m-%d-%H:%M:%S")
     consoleHandler = logging.StreamHandler(stream=sys.stdout)
     #logger.setLevel(logging.DEBUG)
@@ -227,6 +229,80 @@ class AliDDNS:
 
         return response.body.to_map()
 
+class DDNSPacketError(Exception):
+    pass
+
+class Request:
+    """
+    type: chioce in (request:R, ACK:A, error:E)
+
+    type=R:
+    secret: 32byte
+    timestamp:8byte
+    1byte: length
+    username: 
+    1byte: length
+    RR:
+    1byte: length
+    Type:
+    1byte: length
+    domainname:
+
+    type=A:
+    secret: 32byte
+    timestamp:8byte
+
+    type=E:
+    secret: 32byte
+    timestamp:8byte
+    errmsg:
+    """
+
+    def __init__(self, typ):
+        self.typ = typ
+    
+    def build(self, username, secret, rr, type_, domainname):
+        """
+        不对，，，， 这样信息漏了
+        """
+        buf = io.BytesIO()
+        buf.write(b"R")
+
+        buf.write(secret.encode("utf8"))
+
+        timestamp = int(time.time())
+        buf.write(struct.pack("!Q", timestamp))
+
+        u = username.encode("utf8")
+        if len(u) > 255:
+            raise DDNSPacketError("username too long")
+        buf.write(struct.pack("!B", len(u)))
+        buf.write(u)
+
+        r = rr.encode("utf8")
+        if len(r) > 255:
+            raise DDNSPacketError("RR too long")
+        buf.write(struct.pack("!B", len(r)))
+        buf.write(r)
+
+        t = type_.encode("utf8")
+        if len(t) > 255:
+            raise DDNSPacketError("type too long")
+        buf.write(struct.pack("!B", len(t)))
+        buf.write(t)
+
+        dn = domainname.encode("utf8")
+        if len(dn) > 255:
+            raise DDNSPacketError("domainname too long")
+        buf.write(struct.pack("!B", len(dn)))
+        buf.write(dn)
+
+        return buf.getvalue()
+
+    def parse(self, buf):
+        pass
+
+
 
 CONF="""\
 [DDNS]
@@ -247,10 +323,10 @@ Type=
 # Domain: example.com
 Domain=
 
-[Server]
-# 其他轻客户端的key (预计使用很少的 bash 就可以实现; 目前还没实现。)
-clientkey1=
-clientkey2=
+[ClientUUIDs]
+# 其他轻客户端的UUID (预计使用很少的 bash 就可以实现; bash 不行，不能接收UDP数据包。。。还是需要用golang写)
+clientUUID1=
+clientUUID2=
 """
 
 PYZ_PATH = Path(sys.argv[0])
