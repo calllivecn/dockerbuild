@@ -33,6 +33,8 @@ CONF="""\
 [DDNS]
 # 检查间隔时间单位秒
 Interval=180
+# server 的 secret
+Secret=
 
 [Ali]
 # 阿里云
@@ -48,10 +50,24 @@ Type=
 # Domain: example.com
 Domain=
 
-[ClientUUIDs]
-# 其他轻客户端的UUID (预计使用很少的 bash 就可以实现; bash 不行，不能接收UDP数据包。。。还是需要用golang写)
-clientUUID1=
-clientUUID2=
+[Clients]
+# 其他轻客户端的UUID (预计使用很少的 bash 就可以实现; bash 不行，不能接收UDP数据包。。。还是需要用golang和py写)
+clientID1=
+clientID2=
+# 更多client一直添加...
+
+
+[clientID1]
+# client 的 secret
+secret=
+# 例如域名是：dns.example.com
+# RR: dns
+RR=
+# 记录类型, A: ipv4, AAAA: ipv6, TXT: 文本记录
+Type=
+# Domain: example.com
+Domain=
+
 """
 
 PYZ_PATH = Path(sys.argv[0])
