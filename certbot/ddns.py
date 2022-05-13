@@ -15,11 +15,13 @@ import argparse
 import traceback
 import configparser
 from pathlib import Path
-from threading import THread
+from threading import Thread
+from turtle import update
 
 from aliyunlib import AliDDNS
 
 from utils import (
+    Request,
     logger,
     readcfg,
     get_self_ipv6,
@@ -28,12 +30,6 @@ from utils import (
 
 
 CONF="""\
-[DDNS]
-# 检查间隔时间单位秒
-Interval=180
-# server 的 secret
-Secret=
-
 [Ali]
 # 阿里云
 AccessKeyId=
@@ -48,14 +44,24 @@ Type=
 # Domain: example.com
 Domain=
 
+# 检查间隔时间单位秒
+Interval=180
+
+[Server]
+Address="::"
+Port=2022
+# server 的 secret
+Secret=
+
 [Clients]
 # 其他轻客户端的UUID (预计使用很少的 bash 就可以实现; bash 不行，不能接收UDP数据包。。。还是需要用golang和py写)
+# 范围： 4字节 无符号
 ClientID1=
 ClientID2=
 # 更多client一直添加...
 
 
-[clientID1]
+# [上面的 clientID1 value]
 # client 的 secret
 Secret=
 
@@ -79,9 +85,73 @@ name, ext = os.path.splitext(PYZ_PATH.name)
 CFG = PWD / (name + ".conf")
 CACHE = PWD / (name + ".cache")
 
-def callddns(conf):
 
-    ali = conf["Ali"]
+"""
+class Cache:
+
+    def __init__(self, filepath: Path):
+
+        self.filepath = filepath
+
+    def get()
+"""
+
+def get_cache(filepath):
+    if filepath.lstat().st_size <= 4096:
+        with open(filepath, "r") as f:
+            cache = f.read()
+
+        logger.debug(f"cache值：{cache}")
+        ip_cache , dns_record_id = cache.split(" ")
+        return ip_cache, dns_record_id
+    else:
+        logger.warning(f"{CACHE} 文件大小不正常。")
+        raise ValueError(f"{CACHE} 件大小不正常。")
+    
+
+def set_cache(filepath, ipv6, dns_record_id):
+    with open(filepath, "w") as f:
+        f.write(" ".join([ipv6, dns_record_id]))
+
+
+def update_dns(alidns, rr, typ, domain, ipv6):
+    """
+    return: False or dns_record_id 
+    """
+
+    dns = ".".join([rr, domain])
+
+    result = alidns.describe_sub_domain(".".join([rr, domain]), typ)
+
+    logger.debug(f"sub_domain_record: {result}, type: {type(result)}")
+
+    # 这里可能会查询到0条或多条记录
+    if len(result["DomainRecords"]["Record"]) == 0:
+        logger.info(f"没有 {dns} 现在创建。 ip: {ipv6}")
+        result = alidns.addDomainRecord(domain, rr, typ, ipv6)
+        return result["RecordId"]
+
+    elif len(result["DomainRecords"]["Record"]) == 1:
+        dns_record_id = result["DomainRecords"]["Record"][0]["RecordId"]
+
+    else:
+        logger.error(f"当前能查询到多条记录，可能需要更准确的查询，才能正常工作。")
+        return False
+
+    logger.debug(f"dns_record_id: {dns_record_id}")
+    
+    logger.info(f"更新ipv6: {dns} --> {ipv6}")
+
+    try:
+        result = alidns.updateDonameRecord(dns_record_id, rr, typ, ipv6)
+    except Exception as e:
+        logger.debug(f"异信息: {e}")
+        logger.debug(f"updateDonameRecord() --> {result}")
+
+    return dns_record_id
+
+
+def callddns(alidns, conf):
 
     domain = conf["DomainName"]
     dns = ".".join([domain["RR"], domain["Domain"]])
@@ -92,55 +162,146 @@ def callddns(conf):
     if not CACHE.is_file():
         logger.warning(f"{CACHE} 不存在, 需要第一次更新。")
 
-        alidns = AliDDNS(ali["AccessKeyId"], ali["AccessKeySecret"])
-
-        result = alidns.describe_sub_domain(".".join([domain["rr"], domain["Domain"]]), domain["Type"])
-
-        logger.debug(f"sub_domain_record: {result}, type: {type(result)}")
-
-        dns_record_id = result["DomainRecords"]["Record"][0]["RecordId"]
-
         logger.debug(f"dns_record_id: {dns_record_id}")
         
         logger.info(f"更新ipv6: {dns} --> {ipv6}")
-        alidns.updateDonameRecord(dns_record_id, domain["RR"], domain["Type"], ipv6)
 
-        logger.debug(f"写入缓存: {dns_record_id} ")
-        # write cache
-        with open(CACHE, "w") as f:
-            f.write(" ".join([ipv6, dns_record_id]))
-        
-        return None
+        result = update_dns(alidns, domain["RR"], domain["Type"], domain["Domain"], ipv6)
 
+        if result:
+            logger.debug(f"写入缓存: {dns_record_id} ")
+            # write cache
+            with open(CACHE, "w") as f:
+                f.write(" ".join([ipv6, dns_record_id]))
+        else:
+            return
 
-    if CACHE.lstat().st_size <= 4096:
-        with open(CACHE, "r") as f:
-            cache = f.read()
-
-        logger.debug(f"cache值：{cache}")
-        ip_cache , dns_record_id = cache.split(" ")
-
-    else:
-        logger.warning(f"{CACHE} 不存在，或者文件大小不正常。")
-
-        raise ValueError(f"{CACHE} 不存在，或者文件大小不正常。")
-    
+    ip_cache , dns_record_id = get_cache(CACHE)
     
     if ipv6 == ip_cache:
         logger.info("与缓存相同，不用更新.")
     else:
-        alidns = AliDDNS(ali["AccessKeyId"], ali["AccessKeySecret"])
 
         logger.info(f"更新ipv6: {dns} --> {ipv6}")
-        alidns.updateDonameRecord(dns_record_id, domain["RR"], domain["Type"], ipv6)
+
+        result = update_dns(alidns, domain["RR"], domain["Type"], domain["Domain"], ipv6)
 
         logger.debug(f"更新cache: {ipv6} {dns_record_id}")
-        with open(CACHE, "w") as f:
-            f.write(" ".join([ipv6, dns_record_id]))
+        set_cache(CACHE, ipv6, dns_record_id)
 
 
-def server(CFG, ):
-    pass
+def serverdns(conf):
+
+    interval = conf.getint("DomainName", "Interval")
+    keyid = conf.get("Ali", "AccessKeyId")
+    keysecret = conf.get("Ali", "AccessKeySecret")
+
+    alidns = AliDDNS(keyid, keysecret)
+
+    while True:
+        logger.info(f"检查和更新...")
+
+        try:
+            callddns(alidns, conf)
+        except Exception:
+            logger.warning(f"异常:")
+            traceback.print_exc()
+
+        logger.info(f"sleep({interval}) ...")
+        time.sleep(interval)
+
+
+class ClientCache:
+    """
+    放内存吧。
+    """
+    def __init__(self, clientids):
+        self.cache = {}
+
+        for c in clientids:
+            # timestamp, ip
+            self.cache[c] = [0, None]
+        
+    def check(self, id_client, cur_ip):
+        result = self.cache.get(id_client)
+
+        if result is None:
+            return None
+
+        t, cache_ip = result
+
+        cur = time.time()
+        if t != 0 and (cur - t) <= 30:
+            return False
+
+        if cur_ip != cache_ip:
+            self.cache[id_client] = [cur, cur_ip]
+            return True
+        else:
+            return False
+
+
+
+def server(conf):
+
+    # 拿到client id
+    clientids = [ int(x[1]) for x in conf.items("Clients") ]
+    Cache = ClientCache(clientids)
+    logger.debug(f"init Cache: {Cache.cache}")
+
+    server_addr = conf.get("Server", "Address")
+    port = conf.getint("Server", "Port")
+    server_secret = conf.get("Server", "Secret")
+
+    logger.debug(f"server listen: [{server_addr}]:{port}")
+
+    keyid = conf.get("Ali", "AccessKeyId")
+    keysecret = conf.get("Ali", "AccessKeySecret")
+
+    alidns = AliDDNS(keyid, keysecret)
+
+    sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+    sock.bind((server_addr, port))
+
+    while True:
+        data, addr = sock.recvfrom(1024)
+        req = Request()
+        try:
+            req.frombuf(data)
+        except DDNSPacketError as e:
+            logger.warning(f"{addr}: 请求验证失败，可能有人在探测。Error: {e}")
+            continue
+
+        c_check = Cache.check(req.id_client, addr)
+
+        if c_check:
+            logger.debug(f"接收到 clientID:{req.id_client} {addr} 的请求")
+
+            secret = conf.get(str(req.id_client), "Secret")
+
+            if req.verify(secret):
+                # 回复client ACK
+                logger.debug(f"回复ACK")
+                sock.sendto(req.ack(server_secret), addr)
+
+                rr = conf.get(str(req.id_client), "RR")
+                typ = conf.get(str(req.id_client), "Type")
+                domain = conf.get(str(req.id_client), "Domain")
+
+                dns = ".".join([rr, domain])
+                logger.info(f"更新ip: {dns} --> {addr[0]}")
+                # 使用线程更新
+                th = Thread(target=update_dns, args=(alidns, rr, typ, domain, addr[0]), daemon=True)
+                th.start()
+
+            else:
+                logger.warning(f"{addr}: 请求验证失败，可能有人在探测。")
+
+        elif c_check is None:
+            logger.warning(f"{addr}: 请求验证失败，可能有人在探测。")
+        else:
+            logger.debug(f"{addr}: 当前ip没有改变, 或者client请求太频繁(间隔小小于30秒)。")
+
 
 
 
@@ -159,20 +320,19 @@ def main():
 
     conf = readcfg(CFG, CONF)
 
-    INTERVAL = conf.getint("DDNS", "Interval")
+    th_serverdns = Thread(target=serverdns, args=(conf,), daemon=True, name="Server DDNS")
+    th_serverdns.start()
 
-    while True:
-        logger.info(f"检查和更新...")
+    th_server = Thread(target=server, args=(conf,), daemon=True, name="Server")
+    th_server.start()
 
-        try:
-            callddns(conf)
-        except Exception:
-            logger.warning(f"异常:")
-            traceback.print_exc()
+    logger.debug(f"服务端启动完成...")
 
-        logger.info(f"sleep({INTERVAL}) ...")
-        time.sleep(INTERVAL)
-
+    try:
+        th_serverdns.join()
+        th_server.join()
+    except Exception as e:
+        raise e
 
 if __name__ == '__main__':
     main()

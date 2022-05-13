@@ -60,10 +60,10 @@ def readcfg(f, cfg):
         conf = configparser.ConfigParser()
         conf.read(str(f))
     else:
-        with open(f, "w") as f:
-            f.write(cfg)
+        with open(f, "w") as fp:
+            fp.write(cfg)
         
-        logger.warning(f"需要配置{f}文件")
+        logger.warning(f"需要配置 {f} 文件")
         sys.exit(1)
     
     return conf
@@ -104,7 +104,7 @@ class Request:
         self.__buf = buf
 
         self.id_byte = buf[:4]
-        self.id_client = struct.unpack("!I", self.id_byte)
+        self.id_client = struct.unpack("!I", self.id_byte)[0]
         self.sha_client = buf[4:]
 
     def verify(self, secret):
@@ -117,7 +117,7 @@ class Request:
             )
             shas.append(sha256.digest())
         
-        if self.sha in shas:
+        if self.sha_client in shas:
             return True
         else:
             return False
