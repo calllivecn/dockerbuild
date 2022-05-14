@@ -214,7 +214,9 @@ def serverdns(conf):
 class ClientCache:
     """
     放内存吧。
+    return: 0: 更新， 1: 没有对应client, 2: 更新太频繁, 3：ip 没变化
     """
+
     def __init__(self, clientids):
         self.cache = {}
 
@@ -226,19 +228,19 @@ class ClientCache:
         result = self.cache.get(id_client)
 
         if result is None:
-            return None
+            return 1
 
         t, cache_ip = result
 
         cur = time.time()
         if t != 0 and (cur - t) <= 30:
-            return False
+            return 2
 
         if cur_ip != cache_ip:
             self.cache[id_client] = [cur, cur_ip]
-            return True
+            return 0
         else:
-            return False
+            return 3
 
 
 
@@ -265,6 +267,7 @@ def server(conf):
 
     while True:
         data, addr = sock.recvfrom(1024)
+        ip = addr[0]
         req = Request()
         try:
             req.frombuf(data)
@@ -272,10 +275,11 @@ def server(conf):
             logger.warning(f"{addr}: 请求验证失败，可能有人在探测。Error: {e}")
             continue
 
-        c_check = Cache.check(req.id_client, addr)
+        logger.debug(f"Cache: {Cache.cache}")
+        c_check = Cache.check(req.id_client, ip)
 
-        if c_check:
-            logger.debug(f"接收到 clientID:{req.id_client} {addr} 的请求")
+        if c_check == 0:
+            logger.debug(f"接收到 clientID:{req.id_client} {ip} 的请求")
 
             secret = conf.get(str(req.id_client), "Secret")
 
@@ -289,18 +293,24 @@ def server(conf):
                 domain = conf.get(str(req.id_client), "Domain")
 
                 dns = ".".join([rr, domain])
-                logger.info(f"更新ip: {dns} --> {addr[0]}")
+                logger.info(f"更新ip: {dns} --> {ip}")
                 # 使用线程更新
-                th = Thread(target=update_dns, args=(alidns, rr, typ, domain, addr[0]), daemon=True)
+                th = Thread(target=update_dns, args=(alidns, rr, typ, domain, ip), daemon=True)
                 th.start()
 
             else:
-                logger.warning(f"{addr}: 请求验证失败，可能有人在探测。")
+                logger.warning(f"{ip}: 请求验证失败，可能有人在探测。")
 
-        elif c_check is None:
-            logger.warning(f"{addr}: 请求验证失败，可能有人在探测。")
-        else:
-            logger.debug(f"{addr}: 当前ip没有改变, 或者client请求太频繁(间隔小小于30秒)。")
+        elif c_check == 1:
+            logger.warning(f"{ip}: 请求验证失败，可能有人在探测。")
+            
+        elif c_check == 2:
+            sock.sendto(req.ack(server_secret), addr)
+            logger.debug(f"{ip}: 请求太频繁(间隔小小于30秒)。")
+
+        elif c_check == 3:
+            sock.sendto(req.ack(server_secret), addr)
+            logger.debug(f"{ip}: 当前ip没有改变。")
 
 
 
