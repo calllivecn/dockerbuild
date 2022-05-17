@@ -8,8 +8,9 @@ import os
 import sys
 import time
 import socket
-import argparse
 import logging
+import argparse
+import traceback
 from pathlib import Path
 
 from utils import (
@@ -132,7 +133,12 @@ def main():
     
 
     while True:
-        client(addr, port, clientid, secret, server_secret, retry, timeout)
+        try:
+            client(addr, port, clientid, secret, server_secret, retry, timeout)
+        except Exception:
+            logger.warning(f"有异常：")
+            traceback.print_exc()
+
         logger.info(f"sleep({interval}) ...")
         time.sleep(interval)
 
