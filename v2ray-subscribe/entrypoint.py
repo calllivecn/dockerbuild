@@ -173,12 +173,13 @@ def getsubscription(context):
     for url in proxy_urls.split(b"\n"):
 
         if url.startswith(b"ss://"):
-            # logger.warning(f"目前先不支持ss: {url}")
-            ss = base64.b64decode(url[5:]).decode("ascii")
-            if proxys.get("ss"):
-                proxys["ss"].append(ss)
-            else:
-                proxys["ss"] = [ss]
+            logger.warning(f"目前先不支持ss: {url}")
+
+            # ss = base64.b64decode(check_b64(url[5:])).decode("utf8")
+            # if proxys.get("ss"):
+                # proxys["ss"].append(ss)
+            # else:
+                # proxys["ss"] = [ss]
 
 
         # elif url.startswith(b"ssr://"):
@@ -199,7 +200,7 @@ def getsubscription(context):
 
         elif url.startswith(b"vmess://"):
             try:
-                vmess = base64.b64decode(check_b64(url[8:]))
+                vmess = base64.b64decode(check_b64(url[8:])).decode("utf8")
             except Exception:
                 logger.error(f"Error: base64.b64decode() --> {url}")
                 continue
