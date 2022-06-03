@@ -342,7 +342,11 @@ def main():
         check_subscription()
 
         days = 60*60 * UPDATE_INTERVAL
-        time.sleep(days)
+        for i in range(days):
+            if v2ray_process.poll() is not None:
+                break
+            time.sleep(1)
+
         logger.info(f"更新节点信息")
 
 
