@@ -280,6 +280,10 @@ def reboot(subproc, config):
 
     for i in range(5):
         recode = subproc.terminate()
+
+        if subproc.poll() is not None:
+            break
+
         logger.info(f"terminate() retry {i}/5")
         if recode is None:
             time.sleep(1)
