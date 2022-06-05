@@ -337,7 +337,7 @@ def main():
                 updatecfg(speed_sorted[0][1])
 
             if subprocess.Popen == type(v2ray_process):
-                reboot(v2ray_process, v2ray_config)
+                v2ray_process = reboot(v2ray_process, v2ray_config)
             else:
                 v2ray_process = v2ray(v2ray_config)
 
