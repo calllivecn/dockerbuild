@@ -5,6 +5,7 @@
 
 import os
 import sys
+import ssl
 import time
 import json
 import base64
@@ -115,7 +116,13 @@ def runtime(prompt):
 
 def get(url):
     req = request.Request(url, headers={"User-Agent": "curl/7.68.0"}, method="GET")
-    data = request.urlopen(req)
+
+    if os.environ.get("SKIP_CA"):
+        ctx = ssl.SSLContext()
+        data = request.urlopen(req, context=ctx)
+    else:
+        data = request.urlopen(req)
+
     context = data.read()
     return context
 
