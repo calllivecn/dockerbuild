@@ -10,6 +10,7 @@ import json
 import base64
 import pprint
 import socket
+import signal
 import logging
 import argparse
 import subprocess
@@ -114,7 +115,7 @@ def runtime(prompt):
 
 
 def get(url):
-    req = request.Request(url, headers={"User-Agent": "curl/7.68.0"}, method="GET")
+    req = request.Request(url, headers={"User-Agent": "curl/7.81.0"}, method="GET")
     data = request.urlopen(req)
     context = data.read()
     return context
@@ -163,6 +164,13 @@ def check_subscription():
         percentage = round(use/total*100, 2)
 
         logger.info(f"当前总共流量 {total_GB}G，当前流量使用: {use_GB}GB 当前已使用百分比： {percentage}% 流量重置日期：{reset_day}")
+
+
+def signal_handle(subproc):
+    subproc.terminate()
+    logger.info(f"subproc terminate()")
+    sys.exit(0)
+
 
 
 @runtime("get subscription")
@@ -308,12 +316,14 @@ def main():
     if args.debug:
         logger.setLevel(logging.DEBUG)
 
-    logger.info(f"第 {UPDATE_INTERVAL} 小时更新节点信息")
+    logger.info(f"每 {UPDATE_INTERVAL} 小时更新节点信息")
 
     v2ray_config = os.path.join(V2RAY_PATH, "config.json")
 
     v2ray_process = ""
     last_server_info = ""
+
+    signal.signal(signal.SIGTERM, lambda sig, frame: signal_handle(v2ray_process))
 
     while True:
         server_info = get(SERVER_URL)
