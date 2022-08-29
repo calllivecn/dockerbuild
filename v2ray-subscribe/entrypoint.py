@@ -233,7 +233,12 @@ def test_connect_speed(vmess_list):
     for vmess in vmess_list:
 
         t1 = time.time()
-        sock = socket.create_connection((vmess["add"], vmess["port"]))
+        try:
+            sock = socket.create_connection((vmess["add"], vmess["port"]), timeout=7)
+        except socket.timeout:
+            logger.warning(f"测试连接速度超时: {vmess}")
+            continue
+
         t2 = time.time()
         sock.close()
 
