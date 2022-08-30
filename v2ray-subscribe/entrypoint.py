@@ -5,7 +5,6 @@
 
 import os
 import sys
-import ssl
 import time
 import json
 import base64
@@ -16,7 +15,11 @@ import logging
 import argparse
 import subprocess
 from pathlib import Path
-from urllib import request
+from urllib import parse, request
+from threading import (
+    Lock,
+    Thread,
+)
 
 V2RAY_CONFIG_JSON = {
     "log": {
@@ -173,6 +176,25 @@ def signal_handle(subproc):
     sys.exit(0)
 
 
+# 访问 google 测试连通性
+def testproxy(url="https://www.google.com/"):
+
+    headers = {"User-Agent": "curl/7.68.0"}
+
+    req = request.Request(url, headers=headers)
+
+    proxy_handler = request.ProxyHandler({"http": "[::1]:9999", "https": "[::1]:9999"})
+
+    logger.debug("proxy req.headers -->:\n", req.headers)
+    opener = request.build_opener(proxy_handler)
+    try:
+        html_bytes = opener.open(req, timeout=7).read()
+    except socket.timeout:
+        return False
+
+    return True
+
+
 
 @runtime("get subscription")
 def getsubscription(context):
@@ -236,7 +258,7 @@ def test_connect_speed(vmess_list):
         try:
             sock = socket.create_connection((vmess["add"], vmess["port"]), timeout=7)
         except socket.timeout:
-            logger.warning(f"测试连接速度超时: {vmess}")
+            logger.warning(f"测试连接速度超时: {vmess['add']} {vmess['port']}")
             continue
 
         t2 = time.time()
@@ -249,25 +271,26 @@ def test_connect_speed(vmess_list):
 
 def updatecfg(vmess_json):
 
-    outbounds = [
-        {
+    outbounds = []
+    for _delay, vmess in vmess_json:
+        v = {
             "protocol": "vmess",
             "settings": {
                 "vnext": [
                     {
-                        "address": vmess_json["add"],
-                        "port": int(vmess_json["port"]),
+                        "address": vmess["add"],
+                        "port": int(vmess["port"]),
                         "users": [
                             {
-                                "id": vmess_json["id"],
-                                "alterId": vmess_json["aid"]
+                                "id": vmess["id"],
+                                "alterId": vmess["aid"]
                             }
                         ]
                     }
                 ]
             }
         }
-    ]
+        outbounds.append(v)
 
     V2RAY_CONFIG_JSON["outbounds"] = outbounds
 
@@ -287,6 +310,7 @@ def v2ray(config):
     else:
         subproc = subprocess.Popen(f"/v2ray/v2ray run".split())
 
+    logger.info(f"v2ray pid: {subproc.pid}")
     return subproc
 
 
@@ -305,11 +329,24 @@ def reboot(subproc, config):
             logger.info(f"terminate() ok")
             break
 
-    # 如果subprc 是结束，send_signal() 什么也不做。
+    # 如果 subprc 是结束，send_signal() 什么也不做。
     subproc.send_signal(9)
 
     new_subproc = v2ray(config)
+    logger.info(f"v2ray pid: {new_subproc.pid}")
     return new_subproc
+
+
+def v2ray_manager(reboot_lock: Lock, kill_lock):
+    """
+    需要重启的情况：
+    1. 进程退出？
+    2. testproxy() --> False
+    3. 配置更新？
+    """
+    while True:
+        if reboot_lock.acquire(timeout=7):
+            reboot
 
 
 def main():
@@ -328,29 +365,33 @@ def main():
 
     v2ray_process = ""
     last_server_info = ""
+    # 连续请求最小间隔
+    MIN_INTERVAL = 30
+    min_interval = 0
 
     signal.signal(signal.SIGTERM, lambda sig, frame: signal_handle(v2ray_process))
 
     while True:
-        server_info = get(SERVER_URL)
+        # 防止短时间内请求订阅地址过多被ban。
+        t = time.time()
+        if (t - min_interval) > MIN_INTERVAL:
+            server_info = get(SERVER_URL)
+            check_subscription()
+            min_interval = time.time()
+        else:
+            logger.warning(f"短时间内请求订阅地址过多, 本次暂不请求。")
+
 
         if last_server_info == server_info:
             logger.info("server 信息没更新，不重启")
-
         else:
             logger.info(f"server url result: {server_info}")
 
             proxys = getsubscription(server_info)
 
-            try:
-                speed_sorted = test_connect_speed(proxys["vmess"])
-            except Exception as e:
-                logger.info(f"测试连异常: {e}")
-                logger.info("使用第一个vmess地址")
-                updatecfg(proxys["vmess"][0][1])
-            else:
-                logger.info("测试连接延时:\n" + pprint.pformat(speed_sorted))
-                updatecfg(speed_sorted[0][1])
+            speed_sorted = test_connect_speed(proxys["vmess"])
+            logger.info("测试连接延时:\n" + pprint.pformat(speed_sorted))
+            updatecfg(speed_sorted)
 
             if subprocess.Popen == type(v2ray_process):
                 v2ray_process = reboot(v2ray_process, v2ray_config)
@@ -359,9 +400,14 @@ def main():
 
             last_server_info = server_info
         
-        check_subscription()
+
+        # 如果 v2ray 已退出，起个新的
+        if v2ray_process.poll() is not None:
+            v2ray_process = reboot(v2ray_process, v2ray_config)
 
         days = 60*60 * UPDATE_INTERVAL
+        # sleep_interval = 60*5
+        # for i in range(0, days, sleep_interval):
         for i in range(days):
             if v2ray_process.poll() is not None:
                 break

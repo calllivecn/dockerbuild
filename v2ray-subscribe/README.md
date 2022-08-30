@@ -9,11 +9,9 @@
 podman run -d --name v2ray -p 9999:9999 -p 10000:10000 -e SERVER_URL=https://v2ray.server.com/
 ro
 podman run -d --name v2ray -p <http_proxy port>:9999 -p <socks5_proxy port>:10000 -e SERVER_URL=<$your subscription address>
-or
-podman run -d --name v2ray -p <http_proxy port>:9999 -p <socks5_proxy port>:10000 -e SERVER_URL=<$your subscription address> [-e UPDATE_INTERVAL=<unit hour>]
 ```
 
 - SERVER_URL: 地址
-- API_COUNTER: ...
+- API_COUNTER: 流量使用情况
 - UPDATE_INTERVAL: 更新间隔时间（小时）
 - ~~SKIP_CA: 不检查ca~~
