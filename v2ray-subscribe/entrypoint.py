@@ -14,8 +14,13 @@ import signal
 import logging
 import argparse
 import subprocess
+from queue import Queue
 from pathlib import Path
-from urllib import parse, request
+from urllib import (
+    parse,
+    request,
+    error,
+)
 from threading import (
     Lock,
     Thread,
@@ -87,6 +92,7 @@ V2RAY_CONFIG_JSON = {
     ]
 }
 
+
 def getlogger(level=logging.INFO):
     fmt = logging.Formatter("%(asctime)s %(filename)s:%(lineno)d %(message)s", datefmt="%Y-%m-%d-%H:%M:%S")
 
@@ -106,6 +112,8 @@ def getlogger(level=logging.INFO):
 logger = getlogger()
 
 
+HEADERS={"User-Agent": "curl/7.81.0"}
+
 def runtime(prompt):
     def decorator(func):
         def warp(*args, **kwarg):
@@ -119,7 +127,7 @@ def runtime(prompt):
 
 
 def get(url):
-    req = request.Request(url, headers={"User-Agent": "curl/7.81.0"}, method="GET")
+    req = request.Request(url, headers=HEADERS, method="GET")
     data = request.urlopen(req)
     context = data.read()
     return context
@@ -137,7 +145,15 @@ def getenv(key):
 def check_b64(data):
     return data + b"=" * (4 - len(data) % 4)
 
+
+##################
 #
+# begin
+#
+##################
+
+
+
 SERVER_URL = getenv("SERVER_URL")
 logger.debug(f"SERVER_URL: {SERVER_URL}")
 
@@ -171,26 +187,30 @@ def check_subscription():
 
 
 def signal_handle(subproc):
-    subproc.terminate()
-    logger.info(f"subproc terminate()")
+    # subproc.terminate()
+    subproc.kill()
     sys.exit(0)
 
 
 # 访问 google 测试连通性
 def testproxy(url="https://www.google.com/"):
 
-    headers = {"User-Agent": "curl/7.68.0"}
-
-    req = request.Request(url, headers=headers)
+    req = request.Request(url, headers=HEADERS)
 
     proxy_handler = request.ProxyHandler({"http": "[::1]:9999", "https": "[::1]:9999"})
 
     logger.debug("proxy req.headers -->:\n", req.headers)
     opener = request.build_opener(proxy_handler)
-    try:
-        html_bytes = opener.open(req, timeout=7).read()
-    except socket.timeout:
-        return False
+
+    for i in range(5):
+        try:
+            html_bytes = opener.open(req, timeout=7).read()
+        except socket.timeout:
+            return False
+        except (ConnectionRefusedError, error.URLError):
+            logger.warning(f"可能才刚启动，代理还没准备好。sleep(1)")
+            time.sleep(1)
+            continue
 
     return True
 
@@ -310,7 +330,6 @@ def v2ray(config):
     else:
         subproc = subprocess.Popen(f"/v2ray/v2ray run".split())
 
-    logger.info(f"v2ray pid: {subproc.pid}")
     return subproc
 
 
@@ -330,23 +349,57 @@ def reboot(subproc, config):
             break
 
     # 如果 subprc 是结束，send_signal() 什么也不做。
-    subproc.send_signal(9)
+    # subproc.send_signal(9)
 
     new_subproc = v2ray(config)
     logger.info(f"v2ray pid: {new_subproc.pid}")
     return new_subproc
 
 
-def v2ray_manager(reboot_lock: Lock, kill_lock):
+class v2ray_manager:
     """
     需要重启的情况：
     1. 进程退出？
     2. testproxy() --> False
     3. 配置更新？
     """
-    while True:
-        if reboot_lock.acquire(timeout=7):
-            reboot
+
+    SIG_REBOOT = 1
+
+    def __init__(self, config: Path):
+        self.config = config
+        self.q = Queue(4)
+        self._running = False
+        self._exit = False
+
+    def __start(self):
+        self.th = Thread(target=self.__v2ray, daemon=True)
+        self.th.start()
+        self._running = True
+
+    def reboot(self):
+        if self._running:
+            self.p.terminate()
+        else:
+            self.__start()
+    
+    def kill(self):
+        self._exit = True
+        self.p.terminate()
+
+    def __v2ray(self):
+
+        while True:
+            self.p = v2ray(self.config)
+            logger.info(f"启动 v2ray pid: {self.p.pid}")
+            recode = self.p.wait()
+
+            if self._exit:
+                logger.info(f"terminal() pid:{self.p.pid}")
+                break
+
+            logger.info(f"v2ray 退出 recode: {recode}, sleep 1 重启")
+            time.sleep(1)
 
 
 def main():
@@ -363,7 +416,7 @@ def main():
 
     v2ray_config = os.path.join(V2RAY_PATH, "config.json")
 
-    v2ray_process = ""
+    v2ray_process = v2ray_manager(v2ray_config)
     last_server_info = ""
     # 连续请求最小间隔
     MIN_INTERVAL = 30
@@ -383,7 +436,7 @@ def main():
 
 
         if last_server_info == server_info:
-            logger.info("server 信息没更新，不重启")
+            logger.info(f"server 信息没更新，不重启")
         else:
             logger.info(f"server url result: {server_info}")
 
@@ -393,25 +446,25 @@ def main():
             logger.info("测试连接延时:\n" + pprint.pformat(speed_sorted))
             updatecfg(speed_sorted)
 
-            if subprocess.Popen == type(v2ray_process):
-                v2ray_process = reboot(v2ray_process, v2ray_config)
-            else:
-                v2ray_process = v2ray(v2ray_config)
+            v2ray_process.reboot()
 
             last_server_info = server_info
-        
-
-        # 如果 v2ray 已退出，起个新的
-        if v2ray_process.poll() is not None:
-            v2ray_process = reboot(v2ray_process, v2ray_config)
 
         days = 60*60 * UPDATE_INTERVAL
-        # sleep_interval = 60*5
-        # for i in range(0, days, sleep_interval):
-        for i in range(days):
-            if v2ray_process.poll() is not None:
+        sleep_interval = 60*5
+        for i in range(0, days, sleep_interval):
+            pt1 = time.time()
+            tf = testproxy()
+            pt2 = time.time()
+            if tf:
+                logger.info(f"联通性测试ok")
+            else:
+                logger.warning(f"联通性测试失败, 更新配置或重启。")
                 break
-            time.sleep(1)
+            time.sleep(sleep_interval - (pt2-pt1))
+
+        # for i in range(days):
+            # time.sleep(1)
 
         logger.info(f"更新节点信息")
 
