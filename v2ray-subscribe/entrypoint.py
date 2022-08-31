@@ -128,7 +128,7 @@ def runtime(prompt):
 
 def get(url):
     req = request.Request(url, headers=HEADERS, method="GET")
-    data = request.urlopen(req)
+    data = request.urlopen(req, timeout=30)
     context = data.read()
     return context
 
@@ -199,25 +199,30 @@ def testproxy(url="https://www.google.com/"):
 
     proxy_handler = request.ProxyHandler({"http": "[::1]:9999", "https": "[::1]:9999"})
 
-    logger.debug("proxy req.headers -->:\n", req.headers)
+    logger.debug(f"proxy req.headers -->: {req.headers}")
     opener = request.build_opener(proxy_handler)
 
+    result = True
     for i in range(5):
         try:
             html_bytes = opener.open(req, timeout=7).read()
+            result = True
+            break
         except socket.timeout:
-            return False
+            logger.warning(f"联通性测试失败, retry {i}/5。")
+            result = False
+            continue
         except (ConnectionRefusedError, error.URLError):
-            logger.warning(f"可能才刚启动，代理还没准备好。sleep(1)")
-            time.sleep(1)
+            logger.warning(f"可能才刚启动，代理还没准备好。sleep(3)")
+            time.sleep(3)
+            result = False
             continue
 
-    return True
+    return result
 
 
 
-@runtime("get subscription")
-def getsubscription(context):
+def decode_subscription(context):
     proxy_urls = base64.b64decode(context)
     proxys = {}
 
@@ -402,6 +407,44 @@ class v2ray_manager:
             time.sleep(1)
 
 
+class JustMySock:
+
+    def __init__(self):
+
+        # 连续请求最小间隔
+        self.MIN_INTERVAL = 30
+        self._t_init = 0
+
+        self.last_server_info = ""
+
+        self.conn_fail = False
+
+    def get_subscription(self):
+        t = time.time()
+        if (t - self._t_init) > self.MIN_INTERVAL:
+            logger.info(f"更新节点信息...")
+            self.server_info = get(SERVER_URL)
+            check_subscription()
+            self._t_init = t
+        else:
+            logger.warning(f"短时间内请求订阅地址过多, 本次暂不请求。")
+
+        if self.last_server_info == self.server_info:
+            logger.info(f"server 信息没更新。")
+            self.updated = False
+        else:
+            logger.info(f"server url result: {self.server_info}")
+            self.test_speed()
+            self.last_server_info = self.server_info
+            self.updated = True
+
+    def test_speed(self):
+        self.proxys = decode_subscription(self.server_info)
+        speed_sorted = test_connect_speed(self.proxys["vmess"])
+        logger.info("测试连接延时:\n" + pprint.pformat(speed_sorted))
+        updatecfg(speed_sorted)
+
+
 def main():
 
     parse = argparse.ArgumentParser()
@@ -414,41 +457,19 @@ def main():
 
     logger.info(f"每 {UPDATE_INTERVAL} 小时更新节点信息")
 
-    v2ray_config = os.path.join(V2RAY_PATH, "config.json")
+    v2ray_config = V2RAY_PATH / "config.json"
 
     v2ray_process = v2ray_manager(v2ray_config)
-    last_server_info = ""
-    # 连续请求最小间隔
-    MIN_INTERVAL = 30
-    min_interval = 0
+
+    jms = JustMySock()
 
     signal.signal(signal.SIGTERM, lambda sig, frame: signal_handle(v2ray_process))
 
     while True:
-        # 防止短时间内请求订阅地址过多被ban。
-        t = time.time()
-        if (t - min_interval) > MIN_INTERVAL:
-            server_info = get(SERVER_URL)
-            check_subscription()
-            min_interval = time.time()
-        else:
-            logger.warning(f"短时间内请求订阅地址过多, 本次暂不请求。")
+        jms.get_subscription()
 
-
-        if last_server_info == server_info:
-            logger.info(f"server 信息没更新，不重启")
-        else:
-            logger.info(f"server url result: {server_info}")
-
-            proxys = getsubscription(server_info)
-
-            speed_sorted = test_connect_speed(proxys["vmess"])
-            logger.info("测试连接延时:\n" + pprint.pformat(speed_sorted))
-            updatecfg(speed_sorted)
-
+        if jms.conn_fail or jms.updated:
             v2ray_process.reboot()
-
-            last_server_info = server_info
 
         days = 60*60 * UPDATE_INTERVAL
         sleep_interval = 60*5
@@ -460,17 +481,15 @@ def main():
                 logger.info(f"联通性测试ok")
             else:
                 logger.warning(f"联通性测试失败, 更新配置或重启。")
+                jms.conne_fail = True
                 break
             time.sleep(sleep_interval - (pt2-pt1))
 
-        # for i in range(days):
-            # time.sleep(1)
-
-        logger.info(f"更新节点信息")
 
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
+        os.kill(os.getpid(), 15)
         logger.info("Ctrl+C exit...")
