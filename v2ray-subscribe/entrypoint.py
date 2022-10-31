@@ -213,7 +213,7 @@ def testproxy(url="https://www.google.com/"):
             result = False
             continue
         except (ConnectionRefusedError, error.URLError):
-            logger.warning(f"可能才刚启动，代理还没准备好。sleep(3)")
+            logger.warning(f"可能才刚启动，代理还没准备好。sleep(3), retry {i}/5")
             time.sleep(3)
             result = False
             continue
