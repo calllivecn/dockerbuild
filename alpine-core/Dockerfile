@@ -6,9 +6,10 @@ LABEL author="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivec
 #ARG ALPINE_VERSION="3.8"
 #ARG MIRROR="mirrors.ustc.edu.cn"
 #ARG MIRROR="https://mirrors.aliyun.com/alpine/v3.10/"
-ARG MIRROR="mirrors.aliyun.com"
+#ARG MIRROR="mirrors.aliyun.com"
 
-RUN sed -i "s/dl-cdn.alpinelinux.org/${MIRROR}/g" /etc/apk/repositories
+# 不用 aliyun 源了
+#RUN sed -i "s/dl-cdn.alpinelinux.org/${MIRROR}/g" /etc/apk/repositories
 
 # 设置容器里的时区
 RUN apk --no-cache add tzdata \
