@@ -13,6 +13,7 @@ import socket
 import signal
 import logging
 import argparse
+import traceback
 import subprocess
 from queue import Queue
 from pathlib import Path
@@ -171,6 +172,8 @@ def check_subscription():
         try:
             result = get(API)
         except Exception:
+            logger.warning(traceback.format_exception())
+            logger.warning(f"请求订阅出错")
             return
 
         j = json.loads(result) 
@@ -213,6 +216,7 @@ def testproxy(url="https://www.google.com/"):
             result = False
             continue
         except (ConnectionRefusedError, error.URLError):
+            logger.warning(traceback.format_exception())
             logger.warning(f"可能才刚启动，代理还没准备好。sleep(3), retry {i}/5")
             time.sleep(3)
             result = False
