@@ -177,7 +177,7 @@ def check_subscription():
             result = get(API)
         except Exception as e:
             logger.warning(traceback.format_exception(e))
-            logger.warning(f"请求订阅出错")
+            logger.warning(f"请求流量使用信息出错")
             return
 
         j = json.loads(result) 
@@ -474,7 +474,15 @@ def main():
     signal.signal(signal.SIGTERM, lambda sig, frame: signal_handle(v2ray_process))
 
     while True:
-        jms.get_subscription()
+
+        try:
+           jms.get_subscription()
+        except Exception as e:
+            logger.warning(traceback.format_exception(e))
+            logger.warning(f"请求订阅出错")
+            time.sleep(30)
+            continue
+
 
         if jms.conn_fail or jms.updated:
             v2ray_process.reboot()
