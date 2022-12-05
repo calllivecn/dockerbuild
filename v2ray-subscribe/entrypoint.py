@@ -27,6 +27,9 @@ from threading import (
     Thread,
 )
 
+from logging.handlers import TimedRotatingFileHandler
+
+
 V2RAY_CONFIG_JSON = {
     "log": {
         "loglevel": "info",
@@ -100,7 +103,8 @@ def getlogger(level=logging.INFO):
     stream = logging.StreamHandler(sys.stdout)
     stream.setFormatter(fmt)
 
-    fp = logging.FileHandler("manager.logs")
+    # fp = logging.FileHandler("manager.logs")
+    fp = TimedRotatingFileHandler("manager.logs", when="D", interval=1, backupCount=7)
     fp.setFormatter(fmt)
 
     logger = logging.getLogger("AES")
