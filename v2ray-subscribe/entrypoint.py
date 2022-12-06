@@ -26,7 +26,7 @@ from threading import (
     Lock,
     Thread,
 )
-
+from concurrent.futures import ThreadPoolExecutor
 from logging.handlers import TimedRotatingFileHandler
 
 
@@ -176,7 +176,7 @@ def check_subscription():
         try:
             result = get(API)
         except Exception as e:
-            logger.warning(traceback.format_exception(e))
+            logger.warning("".join(traceback.format_exception(e)))
             logger.warning(f"请求流量使用信息出错")
             return
 
@@ -220,7 +220,7 @@ def testproxy(url="https://www.google.com/"):
             result = False
             continue
         except (ConnectionRefusedError, error.URLError) as e:
-            logger.warning(traceback.format_exception(e))
+            logger.warning("".join(traceback.format_exception(e)))
             logger.warning(f"可能才刚启动，代理还没准备好。sleep(3), retry {i}/5")
             time.sleep(3)
             result = False
@@ -281,23 +281,44 @@ def decode_subscription(context):
     return proxys
 
 
-# 目前先只支持vmess
+def test_connect(addr: tuple[str, int]) -> int:
+
+    t1 = time.time()
+    try:
+        sock = socket.create_connection(addr, timeout=7)
+    except socket.timeout:
+        logger.warning(f"测试连接速度超时: {addr}")
+        return None
+
+    sock.close()
+    t2 = time.time()
+    return round((t2 - t1)*1000)
+
+
+# 目前先只支持TCP
 @runtime("测试链接速度")
 def test_connect_speed(vmess_list):
     score = []
     for vmess in vmess_list:
+        t = test_connect((vmess["add"], vmess["port"]))
+        if t is not None:
+            score.append((t, vmess))
 
-        t1 = time.time()
-        try:
-            sock = socket.create_connection((vmess["add"], vmess["port"]), timeout=7)
-        except socket.timeout:
-            logger.warning(f"测试连接速度超时: {vmess['add']} {vmess['port']}")
-            continue
+    return sorted(score, key=lambda x: x[0])
 
-        t2 = time.time()
-        sock.close()
 
-        score.append((round((t2 - t1)*1000), vmess))
+@runtime("测试链接速度")
+def test_connect_speed_thread(vmess_list):
+    score = []
+
+    pool = ThreadPoolExecutor(max_workers=50)
+    map_result = pool.map(test_connect, ((vmess["add"], vmess["port"]) for vmess in vmess_list))
+
+    for t, vmess in zip(map_result, vmess_list):
+        if t is not None:
+            score.append((t, vmess))
+
+    pool.shutdown()
 
     return sorted(score, key=lambda x: x[0])
 
@@ -448,7 +469,8 @@ class JustMySock:
 
     def test_speed(self):
         self.proxys = decode_subscription(self.server_info)
-        speed_sorted = test_connect_speed(self.proxys["vmess"])
+        # speed_sorted = test_connect_speed(self.proxys["vmess"])
+        speed_sorted = test_connect_speed_thread(self.proxys["vmess"])
         logger.info("测试连接延时:\n" + pprint.pformat(speed_sorted))
         updatecfg(speed_sorted)
 
@@ -478,7 +500,7 @@ def main():
         try:
            jms.get_subscription()
         except Exception as e:
-            logger.warning(traceback.format_exception(e))
+            logger.warning("".join(traceback.format_exception(e)))
             logger.warning(f"请求订阅出错")
             time.sleep(30)
             continue
