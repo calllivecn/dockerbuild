@@ -210,20 +210,27 @@ def testproxy(url="https://www.google.com/"):
     opener = request.build_opener(proxy_handler)
 
     result = True
+    wait_sleep = 3
     for i in range(5):
         try:
             html_bytes = opener.open(req, timeout=7).read()
             result = True
             break
         except socket.timeout:
-            logger.warning(f"联通性测试失败, retry {i}/5。")
+            logger.warning(f"联通性测试超时。sleep({wait_sleep}) retry {i}/5。")
             result = False
-            continue
-        except (ConnectionRefusedError, error.URLError) as e:
+        except ConnectionRefusedError as e:
+            logger.warning(f"可能才刚启动，代理还没准备好。sleep({wait_sleep}) retry {i}/5")
+            result = False
+        except error.URLError as e:
+            logger.warning(f"联通性测试失败。sleep({wait_sleep}) retry {i}/5。")
+            result = False
+        except Exception as e:
             logger.warning("".join(traceback.format_exception(e)))
-            logger.warning(f"可能才刚启动，代理还没准备好。sleep(3), retry {i}/5")
-            time.sleep(3)
             result = False
+
+        if not result:
+            time.sleep(wait_sleep)
             continue
 
     return result
