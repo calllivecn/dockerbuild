@@ -467,7 +467,8 @@ class JustMySock:
 
         if self.last_server_info == self.server_info:
             logger.info(f"server 信息没更新。")
-            self.updated = False
+            self.test_speed()
+            self.updated = True
         else:
             logger.info(f"server url result: {self.server_info}")
             self.test_speed()
@@ -479,7 +480,11 @@ class JustMySock:
         # speed_sorted = test_connect_speed(self.proxys["vmess"])
         speed_sorted = test_connect_speed_thread(self.proxys["vmess"])
         logger.info("测试连接延时:\n" + pprint.pformat(speed_sorted))
-        updatecfg(speed_sorted)
+        if len(speed_sorted) == 0:
+            logger.info(f"没有连接...")
+            return
+        else:
+            updatecfg(speed_sorted)
 
 
 def main():
