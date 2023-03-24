@@ -4,25 +4,21 @@
 # author calllivecn <c-all@qq.com>
 
 import os
-import io
 import sys
 import time
 import socket
-import struct
-import hashlib
 import logging
 import argparse
 import traceback
-import configparser
 from pathlib import Path
 from threading import Thread
 from turtle import update
 
 from aliyunlib import AliDDNS
 
+import logs
 from utils import (
     Request,
-    logger,
     readcfg,
     get_self_ipv6,
     DDNSPacketError,
@@ -95,6 +91,7 @@ class Cache:
 
     def get()
 """
+
 
 def get_cache(filepath):
     if filepath.lstat().st_size <= 4096:
@@ -179,7 +176,7 @@ def callddns(alidns, conf):
     ip_cache , dns_record_id = get_cache(CACHE)
     
     if ipv6 == ip_cache:
-        logger.info("与缓存相同，不用更新.")
+        logger.debug("与缓存相同，不用更新.")
     else:
 
         logger.info(f"更新ipv6: {dns} --> {ipv6}")
@@ -199,7 +196,7 @@ def serverdns(conf):
     alidns = AliDDNS(keyid, keysecret)
 
     while True:
-        logger.info(f"检查和更新...")
+        logger.debug(f"检查和更新...")
 
         try:
             callddns(alidns, conf)
@@ -207,7 +204,7 @@ def serverdns(conf):
             logger.warning(f"异常:")
             traceback.print_exc()
 
-        logger.info(f"sleep({interval}) ...")
+        logger.debug(f"sleep({interval}) ...")
         time.sleep(interval)
 
 
@@ -322,8 +319,12 @@ def main():
     )
 
     parse.add_argument("--debug", action="store_true", help=argparse.SUPPRESS)
+    parse.add_argument("--without-logtime", dest="logtime", action="store_false", help="默认日志输出时间戳，用systemd时可以取消。")
 
     args = parse.parse_args()
+
+    global logger
+    logger = logs.getlogger(logtime=args.logtime)
 
     if args.debug:
         logger.setLevel(logging.DEBUG)
