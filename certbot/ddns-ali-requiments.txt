@@ -1,1 +1,1 @@
-alibabacloud-alidns20150109==2.0.2
+alibabacloud-alidns20150109==3.0.1

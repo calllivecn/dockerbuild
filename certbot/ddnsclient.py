@@ -13,12 +13,13 @@ import argparse
 import traceback
 from pathlib import Path
 
+import logs
 from utils import (
-    logger,
     readcfg,
     Request,
     DDNSPacketError,
 )
+
 
 CONF="""\
 [Client]
@@ -87,7 +88,7 @@ def client(addr, port, id, secret, server_secret, retry, timeout):
             continue
         
         if req.verifyAck(data_ack, server_secret):
-            logger.info(f"Server:{c_addr[0]}  verify ACK ok")
+            logger.info(f"Server: {addr} Addr: {c_addr[0]}  verify ACK ok")
             break
         else:
             logger.warning(f"{c_addr[0]}: 收到的回复验证不通过！可能正在被探测。")
@@ -108,11 +109,16 @@ def main():
     # parse.add_argument("--config", required=True, help="配置文件")
     parse.add_argument("--parse", action="store_true", help=argparse.SUPPRESS)
 
+    parse.add_argument("--without-logtime", dest="logtime", action="store_false", help="默认日志输出时间戳，用systemd时可以取消。")
+
     args = parse.parse_args()
 
     if args.parse:
         print(args)
         sys.exit(0)
+    
+    global logger
+    logger = logs.getlogger(logtime=args.logtime)
     
     if args.debug:
         logger.setLevel(logging.DEBUG)
@@ -139,7 +145,7 @@ def main():
             logger.warning(f"有异常：")
             traceback.print_exc()
 
-        logger.info(f"sleep({interval}) ...")
+        logger.debug(f"sleep({interval}) ...")
         time.sleep(interval)
 
 
