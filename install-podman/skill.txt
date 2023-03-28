@@ -1,0 +1,16 @@
+
+
+
+# run --cpus 限制,查看。需要开启.
+1. $ cat "/sys/fs/cgroup/user.slice/user-$(id -u).slice/user@$(id -u).service/cgroup.controllers"
+
+2. 如输出为：memory pids ，
+
+需要添加: systemctl edit user@.service
+
+```
+[Service]
+Delegate=memory pids cpu cpuset
+```
+
+3. 然后注销用户重新登录生效。
