@@ -367,9 +367,9 @@ def v2ray(config):
     # v5.0.x
     p = V2RAY_PATH / "v2ray"
     if p.exists():
-        subproc = subprocess.Popen(f"{p} run".split())
+        subproc = subprocess.Popen(f"{p} run".split(), cwd=V2RAY_PATH)
     else:
-        subproc = subprocess.Popen(f"/v2ray/v2ray run".split())
+        subproc = subprocess.Popen(f"/v2ray/v2ray run".split(), cwd=V2RAY_PATH)
 
     return subproc
 
