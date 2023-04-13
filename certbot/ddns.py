@@ -137,7 +137,7 @@ def update_dns(alidns, rr, typ, domain, ipv6):
 
     logger.debug(f"dns_record_id: {dns_record_id}")
     
-    logger.info(f"更新ipv6: {dns} --> {ipv6}")
+    logger.debug(f"更新ipv6: {dns} --> {ipv6}")
 
     try:
         result = alidns.updateDonameRecord(dns_record_id, rr, typ, ipv6)
