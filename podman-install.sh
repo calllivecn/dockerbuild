@@ -26,7 +26,8 @@ URL="https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/uns
 #sudo mkdir -p /etc/apt/keyrings
 #curl -fsSL $URL/Release.key | gpg --dearmor | sudo apt-key add -
 
-curl -fsSL $URL/Release.key | sudo apt-key add -
+# apt-key 命令 从22.04 开始标记为 deprecated。直接把key 文件放到 /etc/apt/trusted.gpg.d/podman.gpg 下就好
+curl -fsSL $URL/Release.key | sudo tee /etc/apt/trusted.gpg.d/podman.gpg
 
 echo "deb [arch=$(dpkg --print-architecture)] $URL/ /" | sudo tee /etc/apt/sources.list.d/podman-stable.list
 sudo apt -y update
