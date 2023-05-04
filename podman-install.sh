@@ -31,7 +31,7 @@ URL="https://download.opensuse.org/repositories/devel:/kubic:/libcontainers:/uns
 # /etc/apt/keyrings/ 用于存储附加密钥环的地方，以便与 Signed-By 一起使用。
 
 # apt-key 命令 从22.04 开始标记为 deprecated。直接把key 文件放到 /etc/apt/trusted.gpg.d/podman.gpg 下就好
-curl -fsSL $URL/Release.key | sudo tee /etc/apt/trusted.gpg.d/podman.gpg
+curl -fsSL $URL/Release.key |gpg --dearmor | sudo tee /etc/apt/trusted.gpg.d/podman.gpg > /dev/null
 
 echo "deb [arch=$(dpkg --print-architecture)] $URL/ /" | sudo tee /etc/apt/sources.list.d/podman-stable.list
 sudo apt -y update
