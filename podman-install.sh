@@ -2,6 +2,8 @@
 # date 2022-11-22 08:19:08
 # author calllivecn <c-all@qq.com>
 
+# https://github.com/containers/podman/discussions/17362
+#
 # Ubuntu 22.04 仓库中只有 Podman 3.4.4，但是您可以使用以下命令从 Podman 官方网站安装最新版本的 Podman： 
 # 
 # ```shell
