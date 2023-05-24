@@ -166,7 +166,7 @@ logger.debug(f"SERVER_URL: {SERVER_URL}")
 V2RAY_PATH = Path(os.environ.get("V2RAY_PATH", "/v2ray"))
 
 # 多久更新一次 unit hour
-UPDATE_INTERVAL = int(os.environ.get("UPDATE_INTERVAL", "8"))
+UPDATE_INTERVAL = int(os.environ.get("UPDATE_INTERVAL", "3"))
 
 # 查看当前流量使用情况，和到期时间。
 def check_subscription():
