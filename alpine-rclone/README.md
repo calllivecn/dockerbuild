@@ -4,7 +4,7 @@
 - rclone 使用步骤
 
 ```shell
-pomdna run -itd --name rclone -v <host_dir>:/webdav --privileged --network host --device /dev/fuse localhost/rclone:latest
+pomdna run -itd --name rclone -v <host_dir>:/webdav --privileged --network host --device /dev/fuse localhost/rclone:latest ash
 
 podman run exec -it rclone ash
 
