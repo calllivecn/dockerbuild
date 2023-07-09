@@ -12,11 +12,9 @@ import argparse
 import traceback
 from pathlib import Path
 from threading import Thread
-from turtle import update
 
 from aliyunlib import AliDDNS
 
-import logs
 from utils import (
     Request,
     readcfg,
@@ -24,6 +22,9 @@ from utils import (
     DDNSPacketError,
 )
 
+import logs
+
+logger = logging.getLogger(logs.LOGNAME)
 
 CONF="""\
 [Ali]
@@ -32,6 +33,7 @@ AccessKeyId=
 AccessKeySecret=
 
 [DomainName]
+# 检测server自己所在机器ip, 并更新指向自己的域名
 # 例如域名是：dns.example.com
 # RR: dns
 RR=
@@ -94,7 +96,7 @@ class Cache:
 
 
 def get_cache(filepath):
-    if filepath.lstat().st_size <= 4096:
+    if filepath.lstat().st_size <= (1<<20):
         with open(filepath, "r") as f:
             cache = f.read()
 
@@ -111,7 +113,7 @@ def set_cache(filepath, ipv6, dns_record_id):
         f.write(" ".join([ipv6, dns_record_id]))
 
 
-def update_dns(alidns, rr, typ, domain, ipv6):
+def update_dns(alidns, rr, typ, domain, ip):
     """
     return: False or dns_record_id 
     """
@@ -124,26 +126,26 @@ def update_dns(alidns, rr, typ, domain, ipv6):
 
     # 这里可能会查询到0条或多条记录
     if len(result["DomainRecords"]["Record"]) == 0:
-        logger.info(f"没有 {dns} 现在创建。 ip: {ipv6}")
-        result = alidns.addDomainRecord(domain, rr, typ, ipv6)
+        logger.info(f"没有 {dns} 现在创建。 ip: {ip}")
+        result = alidns.addDomainRecord(domain, rr, typ, ip)
         return result["RecordId"]
 
     elif len(result["DomainRecords"]["Record"]) == 1:
         dns_record_id = result["DomainRecords"]["Record"][0]["RecordId"]
 
     else:
-        logger.error(f"当前能查询到多条记录，可能需要更准确的查询，才能正常工作。")
+        logger.warning(f"当前能查询到多条记录，可能需要更准确的查询，才能正常工作。")
         return False
 
     logger.debug(f"dns_record_id: {dns_record_id}")
     
-    logger.debug(f"更新ipv6: {dns} --> {ipv6}")
+    logger.info(f"更新ip: {dns} --> {ip}")
 
     try:
-        result = alidns.updateDonameRecord(dns_record_id, rr, typ, ipv6)
+        result = alidns.updateDonameRecord(dns_record_id, rr, typ, ip)
     except Exception as e:
-        logger.debug(f"异信息: {e}")
-        logger.debug(f"updateDonameRecord() --> {result}")
+        logger.warning(f"异信息: {e}")
+        logger.warning(f"updateDonameRecord() --> {result}")
 
     return dns_record_id
 
@@ -153,15 +155,15 @@ def callddns(alidns, conf):
     domain = conf["DomainName"]
     dns = ".".join([domain["RR"], domain["Domain"]])
     
-    ipv6 = get_self_ipv6()
     logger.info(f"获取本机ipv6地址：{ipv6}")
+    ipv6 = get_self_ipv6()
 
     if not CACHE.is_file():
-        logger.warning(f"{CACHE} 不存在, 需要第一次更新。")
+        logger.debug(f"{CACHE} 不存在, 需要第一次更新。")
 
         logger.debug(f"dns_record_id: {dns_record_id}")
         
-        logger.info(f"更新ipv6: {dns} --> {ipv6}")
+        logger.debug(f"更新缓存ipv6: {dns} --> {ipv6}")
 
         result = update_dns(alidns, domain["RR"], domain["Type"], domain["Domain"], ipv6)
 
@@ -187,7 +189,7 @@ def callddns(alidns, conf):
         set_cache(CACHE, ipv6, dns_record_id)
 
 
-def serverdns(conf):
+def serverddns(conf):
 
     interval = conf.getint("DomainName", "Interval")
     keyid = conf.get("Ali", "AccessKeyId")
@@ -263,7 +265,7 @@ def server(conf):
     sock.bind((server_addr, port))
 
     while True:
-        data, addr = sock.recvfrom(1024)
+        data, addr = sock.recvfrom(8192)
         ip = addr[0]
         req = Request()
         try:
@@ -319,19 +321,24 @@ def main():
     )
 
     parse.add_argument("--debug", action="store_true", help=argparse.SUPPRESS)
-    parse.add_argument("--without-logtime", dest="logtime", action="store_false", help="默认日志输出时间戳，用systemd时可以取消。")
+    parse.add_argument("--parse", action="store_true", help=argparse.SUPPRESS)
+    parse.add_argument("--not-logtime", dest="logtime", action="store_false", help="默认日志输出时间戳，用systemd时可以取消。")
 
     args = parse.parse_args()
 
-    global logger
-    logger = logs.getlogger(logtime=args.logtime)
+    if args.parse:
+        print(args)
+        sys.exit(0)
+
+    if args.logtime:
+        logs.set_handler_fmt(logs.stdoutHandler, logs.FMT)
 
     if args.debug:
         logger.setLevel(logging.DEBUG)
 
     conf = readcfg(CFG, CONF)
 
-    th_serverdns = Thread(target=serverdns, args=(conf,), daemon=True, name="Server DDNS")
+    th_serverdns = Thread(target=serverddns, args=(conf,), daemon=True, name="Server DDNS")
     th_serverdns.start()
 
     th_server = Thread(target=server, args=(conf,), daemon=True, name="Server")

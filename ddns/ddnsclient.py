@@ -13,17 +13,20 @@ import argparse
 import traceback
 from pathlib import Path
 
-import logs
 from utils import (
     readcfg,
     Request,
     DDNSPacketError,
 )
 
+import logs
+
+logger = logs.getlogger()
+
 
 CONF="""\
 [Client]
-# 可以是域名，和ipv6
+# 可以是域名，或者ipv6 ipv4
 Address=
 Port=2022
 
@@ -109,7 +112,7 @@ def main():
     # parse.add_argument("--config", required=True, help="配置文件")
     parse.add_argument("--parse", action="store_true", help=argparse.SUPPRESS)
 
-    parse.add_argument("--without-logtime", dest="logtime", action="store_false", help="默认日志输出时间戳，用systemd时可以取消。")
+    parse.add_argument("--not-logtime", dest="logtime", action="store_false", help="默认日志输出时间戳，用systemd时可以取消。")
 
     args = parse.parse_args()
 
@@ -117,8 +120,8 @@ def main():
         print(args)
         sys.exit(0)
     
-    global logger
-    logger = logs.getlogger(logtime=args.logtime)
+    if args.logtime:
+        logs.set_handler_fmt(logs.stdoutHandler, logs.FMT)
     
     if args.debug:
         logger.setLevel(logging.DEBUG)
