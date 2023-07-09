@@ -4,6 +4,7 @@
 # author calllivecn <c-all@qq.com>
 
 
+import os
 import sys
 import time
 import socket
@@ -11,12 +12,27 @@ import struct
 import hashlib
 import logging
 import configparser
+from pathlib import Path
 
 
 import logs
 
 
 logger = logging.getLogger(logs.LOGNAME)
+
+
+PYZ_PATH = Path(sys.argv[0])
+PWD = PYZ_PATH.parent
+
+NAME, ext = os.path.splitext(PYZ_PATH.name)
+
+CFG = PWD / (NAME + ".conf")
+
+
+MultiDNS = PWD / "multidns"
+
+if not MultiDNS.is_dir():
+    os.mkdir(MultiDNS)
 
 
 def get_self_ip():

@@ -14,6 +14,7 @@ import traceback
 from pathlib import Path
 
 from utils import (
+    CFG,
     readcfg,
     Request,
     DDNSPacketError,
@@ -49,12 +50,6 @@ TimeOut=10
 Retry=3
 """
 
-PYZ_PATH = Path(sys.argv[0])
-PWD = PYZ_PATH.parent
-
-name, ext = os.path.splitext(PYZ_PATH.name)
-
-CFG = PWD / (name + ".conf")
 
 def makesock(addr, port=2022):
     # 自动检测是ipv4 ipv6

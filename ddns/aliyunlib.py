@@ -9,7 +9,7 @@ __all__ = (
 )
 
 
-# pip install alibabacloud_alidns20150109==2.0.2
+# pip install alibabacloud_alidns20150109==3.0.1
 from alibabacloud_alidns20150109.client import Client as Alidns20150109Client
 from alibabacloud_tea_openapi import models as open_api_models
 from alibabacloud_alidns20150109 import models as alidns_20150109_models

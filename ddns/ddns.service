@@ -3,7 +3,7 @@ Description=IPv6 DDNS 任务 HOME: %h
 
 
 [Service]
-ExecStart=%h/.ddns/ddns.pyz --without-logtime
+ExecStart=%h/.ddns/ddns.pyz --not-logtime
 WorkingDirectory=%h/.ddns/
 
 [Install]
