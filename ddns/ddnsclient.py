@@ -27,7 +27,7 @@ logger = logs.getlogger()
 
 CONF="""\
 [Client]
-# 可以是域名，或者ipv6 ipv4
+# 服务端地址，可以是域名，或者ipv6 ipv4
 Address=
 Port=2022
 
@@ -115,7 +115,7 @@ def main():
         print(args)
         sys.exit(0)
     
-    if args.logtime:
+    if not args.logtime:
         logs.set_handler_fmt(logs.stdoutHandler, logs.FMT)
     
     if args.debug:
