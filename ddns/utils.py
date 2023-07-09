@@ -13,6 +13,7 @@ import hashlib
 import logging
 import configparser
 from pathlib import Path
+from configparser import NoOptionError, NoSectionError
 
 
 import logs
