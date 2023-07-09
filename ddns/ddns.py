@@ -28,6 +28,7 @@ from utils import (
     readcfg,
     get_self_ipv6,
     DDNSPacketError,
+    NoOptionError,
 )
 
 import logs
@@ -237,16 +238,20 @@ class Conf:
         self.clientids = [ int(x[1]) for x in self.conf.items("Clients") ]
 
         for cid in self.clientids:
-            t = self.conf.get(str(cid), "multidns")
-            if t is not None:
+            try:
+                t = self.conf.get(str(cid), "multidns")
                 self.multidns[cid] = self.__load_json(MultiDNS / t)
-            else:
+            except NoOptionError:
                 cfg = {}
-                cfg["Type"] = self.conf.get(str(cid), "Type")
-                cfg["RR"] = self.conf.get(str(cid), "RR")
-                cfg["Domain"] = self.conf.get(str(cid), "Domain")
-                cfg["Secret"] = self.conf.get(str(cid), "Secret")
-                self.multidns[cid] = [cfg]
+                try:
+                    cfg["Type"] = self.conf.get(str(cid), "Type")
+                    cfg["RR"] = self.conf.get(str(cid), "RR")
+                    cfg["Domain"] = self.conf.get(str(cid), "Domain")
+                    cfg["Secret"] = self.conf.get(str(cid), "Secret")
+                    self.multidns[cid] = [cfg]
+                except NoOptionError:
+                    logger.warning(f"ClientID:{cid} 配置错误.")
+                    sys.exit(1)
 
 
     def __load_json(self, filepath: Path):
