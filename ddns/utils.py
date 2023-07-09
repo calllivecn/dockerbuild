@@ -13,24 +13,11 @@ import logging
 import configparser
 
 
-def getlogger(level=logging.INFO, logtime=True):
-    logger = logging.getLogger("ddns")
-    if logtime:
-        formatter = logging.Formatter("%(asctime)s %(levelname)s %(filename)s:%(funcName)s:%(lineno)d %(message)s", datefmt="%Y-%m-%d-%H:%M:%S")
-    else:
-        formatter = logging.Formatter("%(levelname)s %(filename)s:%(funcName)s:%(lineno)d %(message)s", datefmt="%Y-%m-%d-%H:%M:%S")
+import logs
 
-    consoleHandler = logging.StreamHandler(stream=sys.stdout)
-    #logger.setLevel(logging.DEBUG)
 
-    consoleHandler.setFormatter(formatter)
+logger = logging.getLogger(logs.LOGNAME)
 
-    # consoleHandler.setLevel(logging.DEBUG)
-    logger.addHandler(consoleHandler)
-    logger.setLevel(level)
-    return logger
-
-logger = logging.getLogger("ddns")
 
 def get_self_ip():
     """
