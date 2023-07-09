@@ -22,7 +22,6 @@ from utils import (
     PWD,
     CFG,
     NAME,
-    MultiDNS,
     Request,
     readcfg,
     get_self_ipv6,
@@ -32,6 +31,11 @@ from utils import (
 import logs
 
 logger = logs.getlogger()
+
+MultiDNS = PWD / "multidns"
+
+if not MultiDNS.is_dir():
+    os.mkdir(MultiDNS)
 
 CONF="""\
 [Ali]
@@ -65,7 +69,8 @@ Interval=180
 
 
 [Server]
-Address="::"
+# 默认listen ipv4 ipv6 双栈
+Address=::
 Port=2022
 # server 的 secret
 Secret=
@@ -94,8 +99,8 @@ RR=
 Domain=
 
 # 如果有多个记录需要更新为同一ip，使json文件配置(放在当前目录"multidns/")
-# 和前面的 RR= Type= Domain= 一个。如果同时配置，优先使用 multidns_json 。
-;multidns_json=client1.json
+# 和前面的 RR= Type= Domain= 一个。如果同时配置，优先使用 multidns 。
+;multidns=client1.json
 
 # json格式如下:
 # [
@@ -164,10 +169,24 @@ class Conf:
         self.ali_keyid = self.conf.get("Ali", "AccessKeyId")
         self.ali_keysecret = self.conf.get("Ali", "AccessKeySecret")
 
-        self.server_interval = self.conf.getint("SelfDomainName", "Interval")
         self.server_addr = self.conf.get("Server", "Address")
-        self.server_port = self.conf.get("Server", "Port")
+        self.server_port = self.conf.getint("Server", "Port")
         self.server_secret = self.conf.get("Server", "Secret")
+
+        sdn="SelfDomainName"
+        self.server_interval = self.conf.getint(sdn, "Interval")
+        # 可能使用 multidns json
+        t = self.conf.get(sdn, "multidns")
+        if t is not None:
+            self.multidns[sdn] = self.__load_json(MultiDNS / t)
+        else:
+            cfg = {}
+            cfg["Type"] = self.conf.get(sdn, "Type")
+            cfg["RR"] = self.conf.get(sdn, "RR")
+            cfg["Domain"] = self.conf.get(sdn, "Domain")
+            cfg["Secret"] = self.conf.get(sdn, "Secret")
+            self.multidns[sdn] = [cfg]
+        
     
     def __clientids_cfg(self):
         self.clientids = [ int(x[1]) for x in self.conf.items("Clients") ]
@@ -188,12 +207,17 @@ class Conf:
     def __load_json(self, filepath: Path):
         if filepath.exists():
             with open(filepath) as f:
-                return json.loads(f)
+                return json.load(f)
         else:
             raise FileNotFoundError(filepath)
     
+    def get(self, *args, **kwargs):
+        return self.conf.get(*args, **kwargs)
 
-    def get_client_info(self, id: int) -> List[Dict[str, str]]:
+    def getint(self, *args, **kwargs):
+        return self.conf.getint(*args, **kwargs)
+
+    def get_multidns_info(self, id: int) -> List[Dict[str, str]]:
         return self.multidns.get(id)
 
 
@@ -214,11 +238,14 @@ class Conf:
             return 2
 
         if cur_ip != cache_ip:
-            self.cache[id_client] = [cur, cur_ip]
+            self.client_cache[id_client] = [cur, cur_ip]
             return 0
         else:
             return 3
-
+    
+    def cache_update(self, id_client, cur_ip):
+        cur = time.time()
+        self.cache_check[id_client] = [cur, cur_ip]
 
 
 def update_dns(alidns, rr, typ, domain, ip):
@@ -259,24 +286,26 @@ def update_dns(alidns, rr, typ, domain, ip):
     return dns_record_id
 
 
-def callddns(alidns, conf):
+def multi_update_dns(alidns: AliDDNS, multidns: list, ip: str):
+    for info in multidns:
+        dns = ".".join([info["RR"], info["Domain"]])
+        logger.info(f"更新ip: {dns} --> {ip}")
+        update_dns(alidns, info["RR"], info["Type"], info["Domain"], ip)
 
-    domain = conf["SelfDomainName"]
-    dns = ".".join([domain["RR"], domain["Domain"]])
+
+def self_ddns(alidns, conf):
+
+    self_domains = conf.multidns["SelfDomainName"]
     
-    logger.info(f"获取本机ipv6地址：{ipv6}")
     ipv6 = get_self_ipv6()
+    logger.info(f"获取本机ipv6地址：{ipv6}")
 
     if not ip_dnsid_cache.is_file():
         logger.debug(f"{ip_dnsid_cache.filepath} 不存在, 需要第一次更新。")
 
         logger.debug(f"dns_record_id: {dns_record_id}")
         
-        logger.debug(f"更新缓存ipv6: {dns} --> {ipv6}")
-
-        domain.get("multidns_json")
-
-        result = update_dns(alidns, domain["RR"], domain["Type"], domain["Domain"], ipv6)
+        result = multi_update_dns(alidns, self_domains, ipv6)
 
         if result:
             logger.debug(f"写入缓存: {dns_record_id} ")
@@ -291,41 +320,29 @@ def callddns(alidns, conf):
         logger.debug("与缓存相同，不用更新.")
     else:
 
-        logger.info(f"更新ipv6: {dns} --> {ipv6}")
-
-        result = update_dns(alidns, domain["RR"], domain["Type"], domain["Domain"], ipv6)
+        result = multi_update_dns(alidns, self_domains, ipv6)
 
         logger.debug(f"更新cache: {ipv6} {dns_record_id}")
         ip_dnsid_cache.set(ipv6, dns_record_id)
 
 
-def serverddns(conf: Conf):
+def server_self_ddns(conf: Conf):
 
     interval = conf.server_interval
-    keyid = conf.ali_keyid
-    keysecret = conf.ali_keysecret
 
-    alidns = AliDDNS(keyid, keysecret)
+    alidns = AliDDNS(conf.ali_keyid, conf.ali_keysecret)
 
     while True:
         logger.debug(f"检查和更新...")
 
         try:
-            callddns(alidns, conf)
+            self_ddns(alidns, conf)
         except Exception:
             logger.warning(f"异常:")
             traceback.print_exc()
 
         logger.debug(f"sleep({interval}) ...")
         time.sleep(interval)
-
-
-
-def multi_update_dns(alidns: AliDDNS, multidns: list, ip: str):
-    for info in multidns:
-        dns = ".".join([info["RR"], info["Domain"]])
-        logger.info(f"更新ip: {dns} --> {ip}")
-        update_dns(alidns, info["RR"], info["Type"], info["Domain"])
 
 
 
@@ -348,39 +365,41 @@ def server(conf: Conf):
         try:
             req.frombuf(data)
         except DDNSPacketError as e:
-            logger.warning(f"{addr}: 请求验证失败，可能有人在探测。Error: {e}")
+            logger.warning(f"请求验证失败，可能有人在探测。Error: {e} ip:{ip}")
             continue
+        
+        client_secret = conf.get(str(req.id_client), "Secret")
 
-        logger.debug(f"Cache: {conf.client_cache}")
-        c_check = conf.cache_check(req.id_client, ip)
+        if client_secret is not None and req.verify(client_secret):
+            logger.debug(f"Cache: {conf.client_cache}")
+            c_check = conf.cache_check(req.id_client, ip)
 
-        if c_check == 0:
-            logger.debug(f"接收到 clientID:{req.id_client} {ip} 的请求")
+            if c_check == 0:
+                logger.debug(f"接收到 clientID:{req.id_client} {ip} 的请求")
 
-            if req.verify(conf.server_secret):
                 # 回复client ACK
                 logger.debug(f"回复ACK")
                 sock.sendto(req.ack(conf.server_secret), addr)
 
-                domains = conf.get_client_info(req.id_client)
+                domains = conf.get_multidns_info(req.id_client)
 
                 # 使用线程更新
                 th = Thread(target=multi_update_dns, args=(alidns, domains, ip), daemon=True)
                 th.start()
 
-            else:
-                logger.warning(f"{ip}: 请求验证失败，可能有人在探测。")
+            elif c_check == 1:
+                logger.warning(f"没有对应的clientID: {req.id_client} ip:{ip}")
 
-        elif c_check == 1:
-            logger.warning(f"{ip}: 请求验证失败，可能有人在探测。")
-            
-        elif c_check == 2:
-            sock.sendto(req.ack(conf.server_secret), addr)
-            logger.debug(f"{ip}: 请求太频繁(间隔小小于30秒)。")
+            elif c_check == 2:
+                sock.sendto(req.ack(conf.server_secret), addr)
+                logger.debug(f"请求太频繁(间隔小小于30秒): ip:{ip}")
 
-        elif c_check == 3:
-            sock.sendto(req.ack(conf.server_secret), addr)
-            logger.debug(f"{ip}: 当前ip没有改变。")
+            elif c_check == 3:
+                sock.sendto(req.ack(conf.server_secret), addr)
+                logger.debug(f"当前ip没有改变: {ip}")
+
+        else:
+            logger.warning(f"请求验证失败，可能有人在探测: ip:{ip}")
 
 
 
@@ -401,15 +420,15 @@ def main():
         print(args)
         sys.exit(0)
 
-    if args.logtime:
+    if not args.logtime:
         logs.set_handler_fmt(logs.stdoutHandler, logs.FMT)
 
     if args.debug:
         logger.setLevel(logging.DEBUG)
 
-    conf = readcfg(CFG, CONF)
+    conf = Conf()
 
-    th_serverdns = Thread(target=serverddns, args=(conf,), daemon=True, name="Server DDNS")
+    th_serverdns = Thread(target=server_self_ddns, args=(conf,), daemon=True, name="Server DDNS")
     th_serverdns.start()
 
     th_server = Thread(target=server, args=(conf,), daemon=True, name="Server")

@@ -29,12 +29,6 @@ NAME, ext = os.path.splitext(PYZ_PATH.name)
 CFG = PWD / (NAME + ".conf")
 
 
-MultiDNS = PWD / "multidns"
-
-if not MultiDNS.is_dir():
-    os.mkdir(MultiDNS)
-
-
 def get_self_ip():
     """
     这样可以拿到， 默认出口ip。
@@ -91,12 +85,12 @@ class Request:
         """
         secret: client secret
         """
-        cur = int(time.time())
+        t = int(time.time())
 
         id_byte = struct.pack("!I", id_)
 
         sha = hashlib.sha256(
-            id_byte + secret.encode("ascii") + struct.pack("!Q", cur)
+            id_byte + secret.encode("ascii") + struct.pack("!Q", t)
         )
 
         self.__buf = id_byte + sha.digest()
