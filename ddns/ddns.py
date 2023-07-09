@@ -411,7 +411,7 @@ def server(conf: Conf):
         if client_secret is not None and req.verify(client_secret):
             logger.debug(f"Cache={conf.client_cache}")
             c_check = conf.cache_check(req.id_client, ip)
-            logger.debug(f"接收到请求: ClientID={req.id_client} {ip=}")
+            logger.info(f"接收到请求: ClientID={req.id_client} {ip=}")
 
             if c_check == 0:
 
