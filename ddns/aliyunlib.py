@@ -9,7 +9,7 @@ __all__ = (
 )
 
 
-# pip install alibabacloud_alidns20150109==2.0.2
+# pip install alibabacloud_alidns20150109==3.0.1
 from alibabacloud_alidns20150109.client import Client as Alidns20150109Client
 from alibabacloud_tea_openapi import models as open_api_models
 from alibabacloud_alidns20150109 import models as alidns_20150109_models
@@ -102,6 +102,8 @@ class AliDDNS:
     
     def describe_sub_domain(self, sub_domain, typ):
         """
+        sub_doamin: dns.example.com
+
         return:
         {
             "TotalCount": 1,
@@ -189,6 +191,6 @@ if __name__ == "__main__":
     alidns = AliDDNS(sys.argv[1], sys.argv[2])
 
     # 参数是： "none.calllive.cc", "AAAA"
-    # result = alidns.describe_sub_domain(sys.argv[3], sys.argv[4])
-    result = alidns.addDomainRecord("calllive.cc", "ddns-test2", "A", "127.0.1.2")
+    result = alidns.describe_sub_domain(sys.argv[3], sys.argv[4])
+    #result = alidns.addDomainRecord("calllive.cc", "ddns-test2", "A", "127.0.1.2")
     pprint.pprint(result)

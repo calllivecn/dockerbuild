@@ -4,6 +4,7 @@
 # author calllivecn <c-all@qq.com>
 
 
+import os
 import sys
 import time
 import socket
@@ -11,26 +12,23 @@ import struct
 import hashlib
 import logging
 import configparser
+from pathlib import Path
+from configparser import NoOptionError, NoSectionError
 
 
-def getlogger(level=logging.INFO, logtime=True):
-    logger = logging.getLogger("ddns")
-    if logtime:
-        formatter = logging.Formatter("%(asctime)s %(levelname)s %(filename)s:%(funcName)s:%(lineno)d %(message)s", datefmt="%Y-%m-%d-%H:%M:%S")
-    else:
-        formatter = logging.Formatter("%(levelname)s %(filename)s:%(funcName)s:%(lineno)d %(message)s", datefmt="%Y-%m-%d-%H:%M:%S")
+import logs
 
-    consoleHandler = logging.StreamHandler(stream=sys.stdout)
-    #logger.setLevel(logging.DEBUG)
 
-    consoleHandler.setFormatter(formatter)
+logger = logging.getLogger(logs.LOGNAME)
 
-    # consoleHandler.setLevel(logging.DEBUG)
-    logger.addHandler(consoleHandler)
-    logger.setLevel(level)
-    return logger
 
-logger = logging.getLogger("ddns")
+PYZ_PATH = Path(sys.argv[0])
+PWD = PYZ_PATH.parent
+
+NAME, ext = os.path.splitext(PYZ_PATH.name)
+
+CFG = PWD / (NAME + ".conf")
+
 
 def get_self_ip():
     """
@@ -88,12 +86,12 @@ class Request:
         """
         secret: client secret
         """
-        cur = int(time.time())
+        t = int(time.time())
 
         id_byte = struct.pack("!I", id_)
 
         sha = hashlib.sha256(
-            id_byte + secret.encode("ascii") + struct.pack("!Q", cur)
+            id_byte + secret.encode("ascii") + struct.pack("!Q", t)
         )
 
         self.__buf = id_byte + sha.digest()

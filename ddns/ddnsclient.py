@@ -13,17 +13,21 @@ import argparse
 import traceback
 from pathlib import Path
 
-import logs
 from utils import (
+    CFG,
     readcfg,
     Request,
     DDNSPacketError,
 )
 
+import logs
+
+logger = logs.getlogger()
+
 
 CONF="""\
 [Client]
-# 可以是域名，和ipv6
+# 服务端地址，可以是域名，或者ipv6 ipv4
 Address=
 Port=2022
 
@@ -46,12 +50,6 @@ TimeOut=10
 Retry=3
 """
 
-PYZ_PATH = Path(sys.argv[0])
-PWD = PYZ_PATH.parent
-
-name, ext = os.path.splitext(PYZ_PATH.name)
-
-CFG = PWD / (name + ".conf")
 
 def makesock(addr, port=2022):
     # 自动检测是ipv4 ipv6
@@ -109,7 +107,7 @@ def main():
     # parse.add_argument("--config", required=True, help="配置文件")
     parse.add_argument("--parse", action="store_true", help=argparse.SUPPRESS)
 
-    parse.add_argument("--without-logtime", dest="logtime", action="store_false", help="默认日志输出时间戳，用systemd时可以取消。")
+    parse.add_argument("--not-logtime", dest="logtime", action="store_false", help="默认日志输出时间戳，用systemd时可以取消。")
 
     args = parse.parse_args()
 
@@ -117,8 +115,8 @@ def main():
         print(args)
         sys.exit(0)
     
-    global logger
-    logger = logs.getlogger(logtime=args.logtime)
+    if not args.logtime:
+        logs.set_handler_fmt(logs.stdoutHandler, logs.FMT)
     
     if args.debug:
         logger.setLevel(logging.DEBUG)
