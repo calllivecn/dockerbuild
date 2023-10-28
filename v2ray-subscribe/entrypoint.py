@@ -97,14 +97,14 @@ V2RAY_CONFIG_JSON = {
 }
 
 
-def getlogger(level=logging.INFO):
+def getlogger(log_dir: Path , level=logging.INFO):
     fmt = logging.Formatter("%(asctime)s %(filename)s:%(lineno)d %(message)s", datefmt="%Y-%m-%d-%H:%M:%S")
 
     stream = logging.StreamHandler(sys.stdout)
     stream.setFormatter(fmt)
 
     # fp = logging.FileHandler("manager.logs")
-    fp = TimedRotatingFileHandler("manager.logs", when="D", interval=1, backupCount=7)
+    fp = TimedRotatingFileHandler(log_dir / "manager.logs", when="D", interval=1, backupCount=7)
     fp.setFormatter(fmt)
 
     logger = logging.getLogger("AES")
@@ -113,8 +113,6 @@ def getlogger(level=logging.INFO):
     logger.addHandler(fp)
     return logger
 
-
-logger = getlogger()
 
 
 HEADERS={"User-Agent": "curl/7.81.0"}
@@ -167,6 +165,8 @@ V2RAY_PATH = Path(os.environ.get("V2RAY_PATH", "/v2ray"))
 
 # 多久更新一次 unit hour
 UPDATE_INTERVAL = int(os.environ.get("UPDATE_INTERVAL", "3"))
+
+logger = getlogger(V2RAY_PATH)
 
 # 查看当前流量使用情况，和到期时间。
 def check_subscription():
@@ -499,7 +499,10 @@ def main():
 
     logger.info(f"每 {UPDATE_INTERVAL} 小时更新节点信息")
 
+    v2ray_log_dir = V2RAY_PATH
+
     v2ray_config = V2RAY_PATH / "config.json"
+
 
     v2ray_process = v2ray_manager(v2ray_config)
 
