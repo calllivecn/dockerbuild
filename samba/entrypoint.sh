@@ -23,4 +23,5 @@ echo -e "${PW}\n${PW}" |pdbedit -t -a -u root
 #exec smbd -FS --no-process-group -d ${LOGLEVEL} -s /etc/samba/smb.conf -p 445
 
 # v4.15.7 之前
-exec smbd -F --no-process-group -d ${LOGLEVEL} -s /etc/samba/smb.conf -p 445
+exec smbd -F --no-process-group -d ${LOGLEVEL} -s /etc/samba/smb.conf -p 1445
+

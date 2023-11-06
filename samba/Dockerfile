@@ -9,6 +9,6 @@ COPY entrypoint.sh /
 
 CMD ["/entrypoint.sh"]
 
-EXPOSE 445
+EXPOSE 1445
 
-VOLUME /ro /rw
+#VOLUME /ro /rw
