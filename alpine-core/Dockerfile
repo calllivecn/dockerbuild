@@ -12,7 +12,8 @@ LABEL author="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivec
 #RUN sed -i "s/dl-cdn.alpinelinux.org/${MIRROR}/g" /etc/apk/repositories
 
 # 设置容器里的时区
-RUN apk --no-cache add tzdata \
+RUN sed -i "s/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g" /etc/apk/repositories \
+&& apk --no-cache add tzdata \
 && ln -svf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 
 CMD ["ash"]
