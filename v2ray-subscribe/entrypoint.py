@@ -97,22 +97,35 @@ V2RAY_CONFIG_JSON = {
 }
 
 
-def getlogger(log_dir: Path , level=logging.INFO):
-    fmt = logging.Formatter("%(asctime)s %(filename)s:%(lineno)d %(message)s", datefmt="%Y-%m-%d-%H:%M:%S")
+class Loger:
 
-    stream = logging.StreamHandler(sys.stdout)
-    stream.setFormatter(fmt)
+    def __init__(self, level=logging.INFO):
 
-    # fp = logging.FileHandler("manager.logs")
-    fp = TimedRotatingFileHandler(log_dir / "manager.logs", when="D", interval=1, backupCount=7)
-    fp.setFormatter(fmt)
+        self.fmt = logging.Formatter("%(asctime)s %(filename)s:%(lineno)d %(message)s", datefmt="%Y-%m-%d-%H:%M:%S")
 
-    logger = logging.getLogger("AES")
-    logger.setLevel(level)
-    logger.addHandler(stream)
-    logger.addHandler(fp)
-    return logger
+        self.stream = logging.StreamHandler(sys.stdout)
+        self.stream.setFormatter(self.fmt)
+    
+        self.logger = logging.getLogger("v2ray")
+        self.logger.setLevel(level)
+        self.logger.addHandler(self.stream)
 
+
+    def set_logfile(self, log_dir: Path):
+        # self.fp = logging.FileHandler("manager.logs")
+        self.fp = TimedRotatingFileHandler(log_dir / "manager.log", when="D", interval=1, backupCount=7)
+        self.fp.setFormatter(self.fmt)
+        self.logger.addHandler(self.fp)
+
+    def set_level(self, level):
+        self.logger.set_level(level)
+
+
+    def get_logger(self):
+        return self.logger
+
+log = Loger()
+logger = log.get_logger()
 
 
 HEADERS={"User-Agent": "curl/7.81.0"}
@@ -166,7 +179,7 @@ V2RAY_PATH = Path(os.environ.get("V2RAY_PATH", "/v2ray"))
 # 多久更新一次 unit hour
 UPDATE_INTERVAL = int(os.environ.get("UPDATE_INTERVAL", "3"))
 
-logger = getlogger(V2RAY_PATH)
+log.set_logfile(V2RAY_PATH)
 
 # 查看当前流量使用情况，和到期时间。
 def check_subscription():
