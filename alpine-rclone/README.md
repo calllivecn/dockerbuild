@@ -8,11 +8,11 @@ pomdna run -itd --name rclone -v <host_dir>:/webdav --privileged --network host 
 
 podman run exec -it rclone ash
 
-# 这会进入交互配置, 根据提示来配置
+# 这会进入交互配置, 根据提示来配置, 推荐使用 Nextcloud WebDAV 模式
 rclone config
 
 # 之后挂载--vfs-cache-mode writes或full
-rclone mount webdav:/ /webdav --vfs-cache-mode minimal
+rclone mount <config_name>:/ /webdav --vfs-cache-mode minimal
 
 
 ```
@@ -27,3 +27,5 @@ rclone将缓存所有写入文件的数据。
 如果您使用的是–vfs-cache-mode full选项，rclone将缓存所有文件。
 如果您使用的是–vfs-cache-mode minimal选项，rclone将仅缓存目录和元数据。
 ```
+
+## 好像和直接下载一遍没区别？？？2023-12-26
