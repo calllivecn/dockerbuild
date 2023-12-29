@@ -11,6 +11,7 @@ import socket
 import struct
 import hashlib
 import logging
+import ipaddress
 import configparser
 from pathlib import Path
 from configparser import NoOptionError, NoSectionError
@@ -41,16 +42,42 @@ def get_self_ip():
     logger.debug(addr)
     return addr
 
+# 唯一本地地址：
+FC00 = ipaddress.ip_network("fc00::/7")
+# 链路本地地址：
+FE80 = ipaddress.ip_network("fe80::/10")
+# 多播地址：
+FF00 = ipaddress.ip_network("ff00::/8")
+
+IPV6_NETWORK_reserved = (FC00, FE80, FF00)
+
+def check_ipv6_network_reserved(ipv6: str):
+    """
+    检测ip是不是，保留地址
+    """
+    addr = ipaddress.ip_address(ipv6)
+    for network in IPV6_NETWORK_reserved:
+        if addr in network:
+            return True
+    
+    return False
 
 def get_self_ipv6():
     """
     这样可以拿到， 默认出口ip。
     不过ipv6拿到的是临时动态地址。 直接做ddns, ~~会频繁更新。~~ 不会频繁更新。
     """
-    sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
-    sock.connect(("2400:3200:baba::1", 2022))
-    addr = sock.getsockname()[0]
-    sock.close()
+    while True:
+        sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+        sock.connect(("2400:3200:baba::1", 2022))
+        addr = sock.getsockname()[0]
+        sock.close()
+
+        if check_ipv6_network_reserved(addr):
+            time.sleep(1)
+        else:
+            break
+
     logger.debug(addr)
     return addr
 

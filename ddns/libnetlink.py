@@ -156,7 +156,15 @@ def test():
 
     while True:
         netlink.monitor()
-        print("有新地址！这是访问外网的默认地址:", get_self_ipv6())
+        while True:
+            try:
+                ipv6 = get_self_ipv6()
+            except OSError:
+                time.sleep(1)
+                continue
+            break
+
+        print("有新地址！这是访问外网的默认地址:", ipv6)
     
 
 if __name__ == "__main__":
