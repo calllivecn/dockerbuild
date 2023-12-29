@@ -31,6 +31,8 @@ from utils import (
     NoOptionError,
 )
 
+from libnetlink import NetLink
+
 import logs
 
 logger = logs.getlogger()
@@ -392,6 +394,42 @@ def server_self_ddns(conf: Conf):
 
 
 
+# 使用新的检测IP变化的方式，是阻塞式的。
+def server_self_ddns_v2(conf: Conf):
+
+    alidns = AliDDNS(conf.ali_keyid, conf.ali_keysecret)
+    netlink = NetLink()
+
+    multidns = conf.multidns["SelfDomainName"]
+
+    # 多个域名都是指向同一个ip的，只需要拿第一个对比就行
+    dns = ".".join([multidns[0]["RR"], multidns[0]["Domain"]])
+    
+    while True:
+
+        # 阻塞式，等待系统IP地址更新。
+        netlink.monitor()
+
+        while True:
+            try:
+                ipv6 = get_self_ipv6()
+            except OSError:
+                time.sleep(1)
+            
+            break
+
+        logger.info(f"获取本机ipv6地址：{ipv6}")
+
+        ip_cache = ip_dnsid_cache.get(dns)
+
+        if ipv6 == ip_cache:
+            logger.debug("与缓存相同，不用更新.")
+        else:
+            multi_update_dns(alidns, multidns, ipv6)
+
+
+    netlink.close()
+
 def server(conf: Conf):
 
     logger.debug(f"server listen: [{conf.server_addr}]:{conf.server_port}")
@@ -471,7 +509,8 @@ def main():
 
     conf = Conf()
 
-    th_server_self_ddns = Thread(target=server_self_ddns, args=(conf,), daemon=True, name="Server Self DDNS")
+    # th_server_self_ddns = Thread(target=server_self_ddns, args=(conf,), daemon=True, name="Server Self DDNS")
+    th_server_self_ddns = Thread(target=server_self_ddns_v2, args=(conf,), daemon=True, name="Server Self DDNS")
     th_server_self_ddns.start()
 
     th_server = Thread(target=server, args=(conf,), daemon=True, name="Server")
