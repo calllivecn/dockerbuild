@@ -31,16 +31,48 @@ NAME, ext = os.path.splitext(PYZ_PATH.name)
 CFG = PWD / (NAME + ".conf")
 
 
+# 回环地址：127.0.0.0/8
+# 私有地址：10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+# 广播地址：224.0.0.0/4
+# 测试地址：192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24
+
+IPV4_NETWORK_reserved = (
+    ipaddress.ip_address("127.0.0.0/8"),
+    ipaddress.ip_address("10.0.0.0/8"),
+    ipaddress.ip_address("172.16.0.0/12"),
+    ipaddress.ip_address("192.168.0.0/16"),
+    # ipaddress.ip_address("224.0.0.0/4"),
+)
+
+def check_ipv4_network_reserved(ipv4: str):
+    """
+    检测ip是不是，保留地址
+    """
+    addr = ipaddress.ip_address(ipv4)
+    for network in IPV4_NETWORK_reserved:
+        if addr in network:
+            return True
+    
+    return False
+
 def get_self_ip():
     """
     这样可以拿到， 默认出口ip。
     """
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    sock.connect(("223.5.5.5", 2022))
-    addr = sock.getsockname()[0]
-    sock.close()
+    while True:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.connect(("223.5.5.5", 2022))
+        addr = sock.getsockname()[0]
+        sock.close()
+
+        if check_ipv4_network_reserved(addr):
+            time.sleep(1)
+        else:
+            break
+
     logger.debug(addr)
     return addr
+
 
 # 唯一本地地址：
 FC00 = ipaddress.ip_network("fc00::/7")
