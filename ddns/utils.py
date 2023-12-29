@@ -37,10 +37,10 @@ CFG = PWD / (NAME + ".conf")
 # 测试地址：192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24
 
 IPV4_NETWORK_reserved = (
-    ipaddress.ip_address("127.0.0.0/8"),
-    ipaddress.ip_address("10.0.0.0/8"),
-    ipaddress.ip_address("172.16.0.0/12"),
-    ipaddress.ip_address("192.168.0.0/16"),
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
     # ipaddress.ip_address("224.0.0.0/4"),
 )
 
