@@ -61,7 +61,7 @@ Domain=
 # 检查间隔时间单位秒
 Interval=180
 
-# 如果有多个记录需要更新为同一ip，使json文件配置(放在当前目录"multidns/")
+# 如果有多个记录需要更新为同一ip，使用json文件配置(放在当前目录"multidns/")
 # 和前面的 RR= Type= Domain= 一个。如果同时配置，优先使用 multidns 。
 ;multidns=client1.json
 
@@ -407,14 +407,12 @@ def server_self_ddns_v2(conf: Conf):
     
     while True:
 
-        # 阻塞式，等待系统IP地址更新。
-        netlink.monitor()
-
         while True:
             try:
                 ipv6 = get_self_ipv6()
             except OSError:
                 time.sleep(1)
+                continue
             
             break
 
@@ -426,6 +424,10 @@ def server_self_ddns_v2(conf: Conf):
             logger.debug("与缓存相同，不用更新.")
         else:
             multi_update_dns(alidns, multidns, ipv6)
+
+
+        # 阻塞式，等待系统IP地址更新。
+        netlink.monitor()
 
 
     netlink.close()
@@ -454,7 +456,7 @@ def server(conf: Conf):
         if client_secret is not None and req.verify(client_secret):
             logger.debug(f"Cache={conf.client_cache}")
             c_check = conf.cache_check(req.id_client, ip)
-            logger.info(f"接收到请求: ClientID={req.id_client} {ip=}")
+            # logger.info(f"接收到请求: ClientID={req.id_client} {ip=}")
 
             if c_check == 0:
 
@@ -463,6 +465,8 @@ def server(conf: Conf):
                 sock.sendto(req.ack(conf.server_secret), addr)
 
                 domains = conf.get_multidns_info(req.id_client)
+                domain_tmp = ".".join([domains[0]["RR"], domains[0]["Domain"]])
+                logger.info(f"接收到请求: ClientID={req.id_client} domain={domain_tmp} {ip=}")
 
                 # 使用线程更新
                 th = Thread(target=multi_update_dns, args=(alidns, domains, ip), daemon=True)
