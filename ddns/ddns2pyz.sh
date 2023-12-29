@@ -27,7 +27,7 @@ clean(){
 
 trap clean SIGINT SIGTERM EXIT ERR
 
-cp -rv ddns.py utils.py aliyunlib.py logs.py "${TMP1}/"
+cp -rv ddns.py utils.py aliyunlib.py logs.py libnetlink.py "${TMP1}/"
 shiv --site-packages "$TMP1" --compressed -p '/usr/bin/python3 -sE' -o "ddns.pyz" -e ddns:main
 
 
