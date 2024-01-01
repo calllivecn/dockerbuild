@@ -13,7 +13,7 @@ __all__ = (
 from alibabacloud_alidns20150109.client import Client as Alidns20150109Client
 from alibabacloud_tea_openapi import models as open_api_models
 from alibabacloud_alidns20150109 import models as alidns_20150109_models
-
+from alibabacloud_tea_util import models as util_models
 
 """
 文档地址：https://next.api.aliyun.com/api/Alidns/2015-01-09/AddDomainRecord
@@ -24,6 +24,7 @@ from alibabacloud_alidns20150109 import models as alidns_20150109_models
 
 ALI_DDNS_URL = 'alidns.cn-zhangjiakou.aliyuncs.com'
 
+ALI_DDNS_URL = "alidns.cn-shenzhen.aliyuncs.com"
 
 class AliDDNS:
     def __init__(self, access_key_id, access_key_secret):
@@ -37,6 +38,15 @@ class AliDDNS:
         @return: Client
         @throws Exception
         """
+        # 构造运行时参数对象
+        runtime = util_models.RuntimeOptions()
+        # 读取超时
+        runtime.readTimeout=10000
+        # 连接超时
+        runtime.connectTimeout=5000
+        # 是否自动重试
+        runtime.autoretry=5
+
         config = open_api_models.Config(
             # 您的AccessKey ID,
             access_key_id=self.access_key_id,
