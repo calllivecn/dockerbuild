@@ -423,8 +423,12 @@ def server_self_ddns_v2(conf: Conf):
         if ipv6 == ip_cache:
             logger.debug("与缓存相同，不用更新.")
         else:
-            multi_update_dns(alidns, multidns, ipv6)
-
+            try:
+                multi_update_dns(alidns, multidns, ipv6)
+            except Exception:
+                logger.warning(f"异常:")
+                traceback.print_exc()
+                time.sleep(1)
 
         # 阻塞式，等待系统IP地址更新。
         netlink.monitor()
