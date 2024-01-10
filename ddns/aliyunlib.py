@@ -22,8 +22,7 @@ from alibabacloud_tea_util import models as util_models
 
 
 
-ALI_DDNS_URL = 'alidns.cn-zhangjiakou.aliyuncs.com'
-
+#ALI_DDNS_URL = 'alidns.cn-zhangjiakou.aliyuncs.com'
 ALI_DDNS_URL = "alidns.cn-shenzhen.aliyuncs.com"
 
 class AliDDNS:
