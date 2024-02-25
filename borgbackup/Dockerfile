@@ -2,15 +2,19 @@ FROM alpine-py3:latest
 
 LABEL author="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
 
+COPY entrypoint.sh /
+
 RUN apk --no-cache add borgbackup openssh \
 && rm -fr $HOME/.cache/
 
-#&& pip config --global set install.trusted-host mirrors.aliyun.com:443 \
+
+#ENV SSH_PUBKEY=
 
 #CMD ["/usr/sbin/sshd", "-D"]
 CMD ["ash", "/entrypoint.sh"]
 
 EXPOSE 22
 
-WORKDIR /backups
+WORKDIR /borgbackups
+#VOLUME backups
 
