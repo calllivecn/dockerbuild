@@ -44,3 +44,18 @@ podman exec -it borg-client borg create ssh://ssh_remote_user@ssh_remote_host:ss
 
 ```
 
+
+
+## 在使用system.timer配合做自动远程备份
+
+- 1. 使用system.timer
+
+```
+[Unit]
+Desctiption= borg 自动备份 容器版 borg-client 
+
+[Timer]
+OnbootSec=15m
+...
+```
+
