@@ -7,7 +7,9 @@ RUN apk --no-cache add borgbackup openssh \
 
 #&& pip config --global set install.trusted-host mirrors.aliyun.com:443 \
 
-CMD ["ash"]
+CMD ["/usr/sbin/sshd", "-D"]
+
+EXPOSE 22
 
 WORKDIR /backups
 
