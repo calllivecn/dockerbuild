@@ -1,6 +1,6 @@
 #!/bin/bash
 # date 2020-07-02 18:42:38
-# author calllivecn <c-all@qq.com>
+# author calllivecn <calllivecn@outlook.com>
 
 
 DEVICE_ARGS=()

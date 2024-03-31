@@ -1,6 +1,6 @@
 #!/bin/bash
 # date 2018-10-26 10:18:32
-# author calllivecn <c-all@qq.com>
+# author calllivecn <calllivecn@outlook.com>
 
 sudo xhost +
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 # date 2021-11-03 17:11:25
-# author calllivecn <c-all@qq.com>
+# author calllivecn <calllivecn@outlook.com>
 
 . ../libbuild-depends.sh
 

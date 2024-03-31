@@ -1,6 +1,6 @@
 #!/bin/bash
 # date 2023-04-19 02:51:16
-# author calllivecn <c-all@qq.com>
+# author calllivecn <calllivecn@outlook.com>
 
 
 echo "生成nginx htpasswd用户名和密码"

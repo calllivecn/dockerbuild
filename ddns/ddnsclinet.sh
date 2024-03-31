@@ -1,6 +1,6 @@
 #!/bin/bash
 # date 2022-03-16 09:28:00
-# author calllivecn <c-all@qq.com>
+# author calllivecn <calllivecn@outlook.com>
 
 # 配合 ddns.pyz 使用的轻客户端
 

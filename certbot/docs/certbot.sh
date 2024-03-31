@@ -1,6 +1,6 @@
 #!/bin/bash
 # date 2019-11-19 15:41:02
-# author calllivecn <c-all@qq.com>
+# author calllivecn <calllivecn@outlook.com>
 
 
 CERTBOT_DIR="$HOME/.certbot"

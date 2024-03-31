@@ -1,6 +1,6 @@
 #!/bin/bash
 # date 2020-11-26 22:35:47
-# author calllivecn <c-all@qq.com>
+# author calllivecn <calllivecn@outlook.com>
 
 
 if [ -z "$1" ];then

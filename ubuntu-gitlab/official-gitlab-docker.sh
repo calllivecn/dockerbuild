@@ -1,6 +1,6 @@
 #!/bin/bash
 # date 2019-11-15 10:27:32
-# author calllivecn <c-all@qq.com>
+# author calllivecn <calllivecn@outlook.com>
 
 docker run --detach \
 	--hostname gitlab.example.com \

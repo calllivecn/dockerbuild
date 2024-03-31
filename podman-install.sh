@@ -1,6 +1,6 @@
 #!/bin/bash
 # date 2022-11-22 08:19:08
-# author calllivecn <c-all@qq.com>
+# author calllivecn <calllivecn@outlook.com>
 
 # https://github.com/containers/podman/discussions/17362
 #

@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 # coding=utf-8
 # date 2022-02-15 13:17:44
-# author calllivecn <c-all@qq.com>
+# author calllivecn <calllivecn@outlook.com>
 
 import os
 import sys

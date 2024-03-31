@@ -1,6 +1,6 @@
 #!/bin/bash
 # date 2018-08-24 23:01:51
-# author calllivecn <c-all@qq.com>
+# author calllivecn <calllivecn@outlook.com>
 
 
 prefix_docker_registry="$1"

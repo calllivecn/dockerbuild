@@ -1,6 +1,6 @@
 #!/bin/bash
 # date 2022-03-15 16:59:33
-# author calllivecn <c-all@qq.com>
+# author calllivecn <calllivecn@outlook.com>
 
 
 CWD=$(pwd -P)

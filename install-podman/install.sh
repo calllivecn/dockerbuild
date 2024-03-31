@@ -1,6 +1,6 @@
 #!/bin/bash
 # date 2020-12-08 21:15:56
-# author calllivecn <c-all@qq.com>
+# author calllivecn <calllivecn@outlook.com>
 
 VERSION_ID=$(grep VERSION_ID /etc/os-release |cut -d'"' -f2)
 

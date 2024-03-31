@@ -1,6 +1,6 @@
 #!/bin/bash
 # date 2020-09-01 09:37:55
-# author calllivecn <c-all@qq.com>
+# author calllivecn <calllivecn@outlook.com>
 
 
 export INSTALL_K3S_SKIP_DOWNLOAD=true

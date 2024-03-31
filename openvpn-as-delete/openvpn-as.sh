@@ -1,6 +1,6 @@
 #!/bin/bash
 # date 2020-01-06 18:40:50
-# author calllivecn <c-all@qq.com>
+# author calllivecn <calllivecn@outlook.com>
 
 #docker create \
 #  --name=openvpn-as \

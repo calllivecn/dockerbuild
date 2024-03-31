@@ -1,6 +1,6 @@
 #!/bin/bash
 # date 2018-08-28 15:27:02
-# author calllivecn <c-all@qq.com>
+# author calllivecn <calllivecn@outlook.com>
 
 IMAGE_NAME="openvpn"
 

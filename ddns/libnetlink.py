@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # coding=utf-8
 # date 2023-12-29 15:04:24
-# author calllivecn <c-all@qq.com>
+# author calllivecn <calllivecn@outlook.com>
 
 """
 
@@ -164,7 +164,7 @@ def test():
                 continue
             break
 
-        print("有新地址！这是访问外网的默认地址:", ipv6)
+        print(time.localtime(), "有新地址！这是访问外网的默认地址:", ipv6)
     
 
 if __name__ == "__main__":
