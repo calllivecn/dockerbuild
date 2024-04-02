@@ -141,6 +141,10 @@ class Request:
     recv() --> get_id_conf --> frombuf(buf) --> verify(secret_client) --> ack(secret_server) --> sendto()
     """
 
+    def __init__(self, timestamp_range=60):
+        self.timestamp_range = timestamp_range
+
+
     def make(self, id_, secret):
         """
         secret: client secret
@@ -171,7 +175,7 @@ class Request:
     
         cur = int(time.time())
         shas = []
-        for t in range(cur - 10, cur + 10):
+        for t in range(cur - self.timestamp_range, cur + self.timestamp_range):
             sha256 = hashlib.sha256(
                 self.id_byte + secret.encode("ascii") + struct.pack("!Q", t)
             )

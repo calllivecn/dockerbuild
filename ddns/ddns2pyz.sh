@@ -15,7 +15,7 @@ if [ -d "$DEPEND_CACHE" ];then
 else
 	mkdir -v "${DEPEND_CACHE}"
 	#pip3 install --no-compile --target "$DEPEND_CACHE" "${NAME}"
-	pip3 install --target "$DEPEND_CACHE" -r ddns-ali-requiments.txt
+	pip3 install --target "$DEPEND_CACHE" -r requirements.txt
 	(cd "$DEPEND_CACHE";cp -rv . "$TMP1")
 fi
 
