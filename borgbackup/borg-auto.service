@@ -1,0 +1,12 @@
+[Unit]
+Description=borg auto keyfile backup tools
+
+[Service]
+Type=simple
+EnvironementFile=%h/.ddns/borg-auto.env
+ExecStart=/usr/bin/bash %h/.ddns/borg-auto.sh
+
+#WorkingDirectory=%h/.venv/
+
+# [Install]
+# WantedBy=default.target
