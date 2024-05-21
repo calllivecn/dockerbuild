@@ -7,5 +7,7 @@ Description=borg auto keyfile backup tools *.timer
 OnUnitActiveSec=3d
 #OnCalendar=*-*-* 00:01:00
 
+Persistent=yes
+
 [Install]
 WantedBy=default.target
