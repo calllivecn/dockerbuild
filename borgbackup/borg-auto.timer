@@ -1,0 +1,14 @@
+[Unit]
+Description=borg auto keyfile backup tools *.timer
+
+
+[Timer]
+#OnBootSec=15m
+#OnUnitActiveSec=3d
+OnActiveSec=3d
+#OnCalendar=*-*-* 00:01:00
+
+Persistent=yes
+
+[Install]
+WantedBy=default.target
