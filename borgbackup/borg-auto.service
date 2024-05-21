@@ -3,8 +3,8 @@ Description=borg auto keyfile backup tools
 
 [Service]
 Type=simple
-EnvironementFile=%h/.ddns/borg-auto.env
-ExecStart=/usr/bin/bash %h/.ddns/borg-auto.sh
+EnvironmentFile=%h/.config/borg/borg-auto.env
+ExecStart=/usr/bin/bash %h/.config/borg/borg-auto.sh
 
 #WorkingDirectory=%h/.venv/
 

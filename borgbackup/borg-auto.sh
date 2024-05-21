@@ -13,7 +13,7 @@ set -u
 #borg create -s --patterns-from $BORG_PATTERNS_FROM $SSH_REMOTE_REPO_DIR::{hostname}-{user}_{now:%Y-%m-%d_%H-%M-%S.%f}
 borg create -s --patterns-from $BORG_PATTERNS_FROM $SSH_REMOTE_REPO_DIR::{hostname}-{user}_{now:%Y-%m-%d_%H-%M-%S}
 
-borg prune -s --keep-last 10 $SSH_REMOTE_REPO_DIR
+borg prune -v --keep-last 10 $SSH_REMOTE_REPO_DIR
 
-borg compact -s $SSH_REMOTE_REPO_DIR
+borg compact -v  $SSH_REMOTE_REPO_DIR
 
