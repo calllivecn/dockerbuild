@@ -43,6 +43,17 @@ sudo docker exec -it gitlab grep 'Password:' /etc/gitlab/initial_root_password
 
 - 密码文件在24小时后第一次容器重启时自动删除。
 
+## 修改为中文
+
+- 进入容器 vim /etc/gitlab/gitlab.rb
+- 修改 将en改为zh-CN或zh-TW，分别代表简体中文和繁体中文。
+- 保存配置文件并重新启动Gitlab CE服务。
+
+```ini
+# Default language to use for the GitLab web interface.
+Gitlab::I18n.default_locale = 'en'
+
+```
 
 
 # 使用docker-compose

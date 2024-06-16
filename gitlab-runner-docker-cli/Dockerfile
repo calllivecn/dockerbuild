@@ -1,6 +1,6 @@
 FROM gitlab/gitlab-runner:latest
 
-LABEL author=zhangxu
+LABEL author=calllivecn
 
 RUN apt update \
 && apt -y install gnupg2 \
