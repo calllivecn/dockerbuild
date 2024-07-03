@@ -82,6 +82,23 @@ class AliDDNS:
         response = self.client.add_domain_record(add_domain_record_request)
 
         return response.body.to_map()
+    
+
+    def deleteDomainRecord(self, domain_name, rr, typ):
+
+        result = self.describe_sub_domain(".".join([rr, domain_name]), typ)
+
+        record_id = result["DomainRecords"]["Record"][0]["RecordId"]
+
+        delete_domain_record_request = alidns_20150109_models.DeleteDomainRecordRequest(
+            record_id=record_id
+        )
+
+        response = self.client.delete_domain_record(delete_domain_record_request)
+
+        return response.body.to_map()
+
+
 
     def updateDonameRecord(self, record_id, rr, typ, value):
         """
@@ -150,6 +167,7 @@ class AliDDNS:
         # logger.debug(f"response.body type: {type(response.body)}")
         # jsondata = UtilClient.to_jsonstring(TeaCore.to_map(response))
         return response.body.to_map()
+
 
     def descrbieDomainRecord(self, domain_name, rrkey_word, typ):
         """

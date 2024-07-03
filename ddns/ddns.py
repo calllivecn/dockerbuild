@@ -297,7 +297,7 @@ class Conf:
     
 
 
-def update_dns(alidns, rr, typ, domain, ip):
+def update_dns(alidns: AliDDNS, rr, typ, domain, ip):
     """
     return: False or dns_record_id 
     """

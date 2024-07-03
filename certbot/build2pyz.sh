@@ -15,9 +15,12 @@ if [ -d "$DEPEND_CACHE" ];then
 	(cd "$DEPEND_CACHE";cp -rv . "$TMP")
 else
 	mkdir -v "${DEPEND_CACHE}"
-	#pip3 install --no-compile --target "$DEPEND_CACHE" "${NAME}"
-	pip3 install --target "$DEPEND_CACHE" "${NAME}"
-	(cd "$DEPEND_CACHE";cp -rv . "$TMP")
+	pip3 install --no-compile --target "$DEPEND_CACHE" "${NAME}"
+	pip3 install --no-compile --target "$DEPEND_CACHE" -r requirements.txt
+
+	#pip3 install --target "$DEPEND_CACHE" "${NAME}"
+	echo "cp $DEPEND_CACHE --> $TMP"
+	(cd "$DEPEND_CACHE";cp -r . "$TMP")
 fi
 
 clean(){
@@ -28,6 +31,12 @@ clean(){
 
 trap clean SIGINT SIGTERM EXIT ERR
 
-cp -rv ali_dns.py tencent_dns.py "$TMP"
+#cp -rv ali_dns.py tencent_dns.py "$TMP"
 
 shiv --site-packages "$TMP" --compressed -p '/usr/bin/python3 -sE' -o "${NAME}.pyz" -e certbot.main:main
+
+# 打包ali_dns.pyz
+cp -rv ali_dns.py "$TMP"
+shiv --site-packages "$TMP" --compressed -p '/usr/bin/python3 -sE' -o "ali_dns.pyz" -e ali_dns:main
+
+
