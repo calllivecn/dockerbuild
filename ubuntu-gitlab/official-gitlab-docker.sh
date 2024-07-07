@@ -9,5 +9,5 @@ docker run --detach \
 	--restart always \
 	--volume /home/zx/gitlab-store/config:/etc/gitlab \
 	--volume /home/zx/gitlab-store/logs:/var/log/gitlab \
-	--volume /home/zx/gitlab-store/ata:/var/opt/gitlab \
+	--volume /home/zx/gitlab-store/data:/var/opt/gitlab \
 	gitlab/gitlab-ce:latest
