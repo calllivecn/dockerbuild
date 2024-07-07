@@ -1,6 +1,5 @@
 FROM alpine-core:latest
 
-LABEL author="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
 
 RUN addgroup -g 1000 vue \
 && adduser -D -s /bin/bash -u 1000 -G vue vue \

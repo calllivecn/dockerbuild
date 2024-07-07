@@ -1,6 +1,5 @@
 FROM ubuntu:latest
 
-LABEL author="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
 
 #RUN sed -i -e "s#archive.ubuntu.com#mirrors.aliyun.com#g" -e "s#security.ubuntu.com#mirrors.aliyun.com#g" -e "s#^deb#deb [arch=amd64]#g" /etc/apt/sources.list
 

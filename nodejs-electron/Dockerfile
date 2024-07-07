@@ -1,6 +1,5 @@
 FROM ubuntu-devel:latest
 
-LABEL author="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
 
 RUN apt update && \
 && apt install -y nodejs npm \

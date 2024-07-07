@@ -1,6 +1,5 @@
 FROM ubuntu-core:latest
 
-LABEL author="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
 
 RUN apt -y update \
 && apt -y --no-install-recommends install iproute2 vim bash-completion less iputils-ping telnet wget curl git \

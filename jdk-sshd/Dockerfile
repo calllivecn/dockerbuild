@@ -1,6 +1,5 @@
 FROM ubuntu-devel:latest
 
-LABEL author="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
 
 ARG USER
 ARG UID

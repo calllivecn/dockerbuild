@@ -1,6 +1,5 @@
 FROM java:latest
 
-LABEL author="ZhangXu <c-all@qq.com>" repositories="https://github.com/calllivecn/dockerbuild/"
 
 #ARG apk="apk --no-cache"
 
