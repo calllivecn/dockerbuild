@@ -11,3 +11,4 @@ CMD ["/entrypoint.sh"]
 EXPOSE 1445
 
 #VOLUME /ro /rw
+
