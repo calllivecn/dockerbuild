@@ -33,6 +33,7 @@ shiv --site-packages "$TMP1" --compressed -p '/usr/bin/python3 -sE' -o "ddns.pyz
 
 if [ -d "$DEPEND_CACHE/tomli" ];then
 	cp -av "$DEPEND_CACHE/tomli" "${TMP2}/"
+	rm -rf "${TMP2}/tomli/__pycache__/"
 fi
 
 cp -v ddnsclient.py utils.py logs.py "${TMP2}/"
