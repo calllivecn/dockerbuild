@@ -31,6 +31,10 @@ cp -rv ddns.py utils.py aliyunlib.py logs.py libnetlink.py "${TMP1}/"
 shiv --site-packages "$TMP1" --compressed -p '/usr/bin/python3 -sE' -o "ddns.pyz" -e ddns:main
 
 
+if [ -d "$DEPEND_CACHE/tomli" ];then
+	cp -av "$DEPEND_CACHE/tomli" "${TMP2}/"
+fi
+
 cp -v ddnsclient.py utils.py logs.py "${TMP2}/"
 python3 -m zipapp --python '/usr/bin/env python3' --main ddnsclient:main --compress --output ddnsclient.pyz "${TMP2}" 
 
