@@ -39,74 +39,47 @@ logger = logs.getlogger()
 CONF="""\
 [Ali]
 # 阿里云
-AccessKeyId=
-AccessKeySecret=
+AccessKeyId="xxxxxxxxxxxxxxxxx"
+AccessKeySecret="xxxxxxxxxxxxxxxxx"
 
 [SelfDomainName]
-# 检测server自己所在机器ip, 并更新指向自己的域名
-# 例如域名是：dns.example.com
-# 记录类型, A: ipv4, AAAA: ipv6, TXT: 文本记录
-Type=
-# RR: dns
-RR=
-# Domain: example.com
-Domain=
-
 # 检查间隔时间单位秒
 Interval=180
 
-# 如果有多个记录需要更新为同一ip，使用json文件配置(放在当前目录"multidns/")
-# 和前面的 RR= Type= Domain= 一个。如果同时配置，优先使用 multidns 。
-;multidns=client1.json
-
-# json格式如下:
-# [
-#     {"Type": "AAAA", "RR": "dns1", "Domain": "example.com"},
-#     {"Type": "AAAA", "RR": "dns2", "Domain": "example.com"},
-#     {"Type": "AAAA", "RR": "dns3", "Domain": "example.com"},
-# ]
+# 检测server自己所在机器ip, 并更新指向自己的域名
+# 例如域名是：dns.example.com
+# Type 记录类型有, A: ipv4, AAAA: ipv6, TXT: 文本记录
+# RR: dns,  Domain: example.com
+# 如果有多个记录需要更新为同一ip。
+# 格式如下:
+multidns = [
+    {Type="AAAA", RR="dns1", Domain="example.com"},
+    #{Type="AAAA", RR="dns2", Domain="example.com"},
+    #{Type="AAAA", RR="dns3", Domain="example.com"},
+]
 
 
 [Server]
-# 默认listen ipv4 ipv6 双栈
-Address=::
+Address="::"
 Port=2022
 # server 的 secret
-Secret=
+Secret="xxxxxxxxxxxxxxxxxxxxxxxxx"
 
-[Clients]
+[[Clients]]
 # 其他轻客户端的UUID (预计使用很少的 bash 就可以实现; bash 不行，不能接收UDP数据包。。。还是需要用golang和py写)
-# 范围： 4字节 无符号
-ClientID1=
-ClientID2=
+# 范围：1 ~ 4字节 无符号
 # 更多client一直添加...
+ClientID=1234
 
-
-# [上面的 clientID1 value]
 # client 的 secret
-Secret=
+Secret="xxxxxxxxxxxxxxxxxxxxxxxxx"
 
 # 例如域名是：dns.example.com
-
 # 记录类型, A: ipv4, AAAA: ipv6, TXT: 文本记录
-Type=
-
-# RR: dns
-RR=
-
-# Domain: example.com
-Domain=
-
-# 如果有多个记录需要更新为同一ip，使json文件配置(放在当前目录"multidns/")
-# 和前面的 RR= Type= Domain= 一个。如果同时配置，优先使用 multidns 。
-;multidns=client1.json
-
-# json格式如下:
-# [
-#     {"Type": "AAAA", "RR": "dns1", "Domain": "example.com"},
-#     {"Type": "AAAA", "RR": "dns2", "Domain": "example.com"},
-#     {"Type": "AAAA", "RR": "dns3", "Domain": "example.com"},
-# ]
+# RR: dns; Domain: example.com;
+multidns = [
+    {Type="AAAA", RR="client", Domain="example.com"},
+]
 
 """
 
@@ -190,7 +163,6 @@ ip_dnsid_cache = SelfIPCache()
 class Conf:
 
     def __init__(self):
-        # self.conf = readcfg(CFG, CONF)
         self.conf = readcfg2(CFG, CONF)
 
         self.clientids: List[Dict[str, Any]] = self.conf["Clients"]
