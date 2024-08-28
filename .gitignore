@@ -6,6 +6,7 @@ confd/confd
 __pycache__/
 *.cache
 *.conf
+*.toml
 
 */jdk8/
 */jre8/

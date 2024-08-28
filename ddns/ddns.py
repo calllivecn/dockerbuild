@@ -16,7 +16,7 @@ from threading import Thread
 
 import pprint
 
-from typing import List, Dict
+from typing import List, Dict, Any
 
 from aliyunlib import AliDDNS
 
@@ -25,10 +25,9 @@ from utils import (
     CFG,
     NAME,
     Request,
-    readcfg,
+    readcfg2,
     get_self_ipv6,
     DDNSPacketError,
-    NoOptionError,
 )
 
 from libnetlink import NetLink
@@ -36,11 +35,6 @@ from libnetlink import NetLink
 import logs
 
 logger = logs.getlogger()
-
-MultiDNS = PWD / "multidns"
-
-if not MultiDNS.is_dir():
-    os.mkdir(MultiDNS)
 
 CONF="""\
 [Ali]
@@ -196,81 +190,58 @@ ip_dnsid_cache = SelfIPCache()
 class Conf:
 
     def __init__(self):
-        self.conf = readcfg(CFG, CONF)
+        # self.conf = readcfg(CFG, CONF)
+        self.conf = readcfg2(CFG, CONF)
 
-        self.clientids = []
+        self.clientids: List[Dict[str, Any]] = self.conf["Clients"]
 
-        self.multidns = {}
+        self.multidns: Dict[int, Dict[str, Any]] = {}
+        """
+        self.multidns = {
+        ClientDI:
+        Secret:
+        multidns = [
+            {Type="AAAA", RR="dns-01", Domain="example.com"},
+            {Type="AAAA", RR="dns-02", Domain="example.com"},
+            ]
+        }
+        """
 
         self.__server_cfg()
 
         self.__clientids_cfg()
     
-
         self.client_cache = {}
+
         for c in self.clientids:
+            id_ = c["ClientID"]
             # timestamp, ip
-            self.client_cache[c] = [0, None]
+            self.client_cache[id_] = [0, None]
 
 
     def __server_cfg(self):
-        self.ali_keyid = self.conf.get("Ali", "AccessKeyId")
-        self.ali_keysecret = self.conf.get("Ali", "AccessKeySecret")
+        Ali = self.conf["Ali"]
+        self.ali_keyid = Ali["AccessKeyId"]
+        self.ali_keysecret = Ali["AccessKeySecret"]
 
-        self.server_addr = self.conf.get("Server", "Address")
-        self.server_port = self.conf.getint("Server", "Port")
-        self.server_secret = self.conf.get("Server", "Secret")
+        Server = self.conf["Server"]
+        self.server_addr = Server["Address"]
+        self.server_port = Server["Port"]
+        self.server_secret = Server["Secret"]
 
-        sdn="SelfDomainName"
-        self.server_interval = self.conf.getint(sdn, "Interval")
-        # 可能使用 multidns json
-        t = self.conf.get(sdn, "multidns")
-        if t is None:
-            cfg = {}
-            cfg["Type"] = self.conf.get(sdn, "Type")
-            cfg["RR"] = self.conf.get(sdn, "RR")
-            cfg["Domain"] = self.conf.get(sdn, "Domain")
-            cfg["Secret"] = self.conf.get(sdn, "Secret")
-            self.multidns[sdn] = [cfg]
-        else:
-            self.multidns[sdn] = self.__load_json(MultiDNS / t)
+        self.self_domain_name = self.conf["SelfDomainName"]
+        self.server_interval = self.self_domain_name["Interval"]
         
     
     def __clientids_cfg(self):
-        self.clientids = [ int(x[1]) for x in self.conf.items("Clients") ]
 
         for cid in self.clientids:
-            try:
-                t = self.conf.get(str(cid), "multidns")
-                self.multidns[cid] = self.__load_json(MultiDNS / t)
-            except NoOptionError:
-                cfg = {}
-                try:
-                    cfg["Type"] = self.conf.get(str(cid), "Type")
-                    cfg["RR"] = self.conf.get(str(cid), "RR")
-                    cfg["Domain"] = self.conf.get(str(cid), "Domain")
-                    cfg["Secret"] = self.conf.get(str(cid), "Secret")
-                    self.multidns[cid] = [cfg]
-                except NoOptionError:
-                    logger.warning(f"ClientID:{cid} 配置错误.")
-                    sys.exit(1)
+            c_id = cid["ClientID"]
+            self.multidns[c_id] = cid
 
 
-    def __load_json(self, filepath: Path):
-        if filepath.exists():
-            with open(filepath) as f:
-                return json.load(f)
-        else:
-            raise FileNotFoundError(filepath)
-    
-    def get(self, *args, **kwargs):
-        return self.conf.get(*args, **kwargs)
-
-    def getint(self, *args, **kwargs):
-        return self.conf.getint(*args, **kwargs)
-
-    def get_multidns_info(self, id: int) -> List[Dict[str, str]]:
-        return self.multidns.get(id)
+    def get_multidns_info(self, id: int) -> Dict[str, Any]:
+        return self.multidns[id]
 
 
     def cache_check(self, id_client, cur_ip):
@@ -358,9 +329,9 @@ def multi_update_dns(alidns: AliDDNS, multidns: list, ip: str):
         update_dns(alidns, info["RR"], info["Type"], info["Domain"], ip)
 
 
-def self_ddns(alidns, conf):
+def self_ddns(alidns: AliDDNS, conf: Conf):
 
-    multidns = conf.multidns["SelfDomainName"]
+    multidns = conf.self_domain_name["multidns"]
 
     # 多个域名都是指向同一个ip的，只需要拿第一个对比就行
     dns = ".".join([multidns[0]["RR"], multidns[0]["Domain"]])
@@ -400,7 +371,7 @@ def server_self_ddns_v2(conf: Conf):
     alidns = AliDDNS(conf.ali_keyid, conf.ali_keysecret)
     netlink = NetLink()
 
-    multidns = conf.multidns["SelfDomainName"]
+    multidns = conf.self_domain_name["multidns"]
 
     # 多个域名都是指向同一个ip的，只需要拿第一个对比就行
     dns = ".".join([multidns[0]["RR"], multidns[0]["Domain"]])
@@ -416,7 +387,7 @@ def server_self_ddns_v2(conf: Conf):
             
             break
 
-        logger.info(f"获取本机ipv6地址：{ipv6}")
+        logger.debug(f"获取本机ipv6地址：{ipv6}")
 
         ip_cache = ip_dnsid_cache.get(dns)
 
@@ -455,7 +426,7 @@ def server(conf: Conf):
             logger.warning(f"Error: {e}\n请求验证失败，可能有人在探测: {ip=}")
             continue
         
-        client_secret = conf.get(str(req.id_client), "Secret")
+        client_secret = conf.get_multidns_info(req.id_client)["Secret"]
 
         if client_secret is not None and req.verify(client_secret):
             logger.debug(f"Cache={conf.client_cache}")
@@ -468,7 +439,7 @@ def server(conf: Conf):
                 logger.debug(f"回复ACK")
                 sock.sendto(req.ack(conf.server_secret), addr)
 
-                domains = conf.get_multidns_info(req.id_client)
+                domains = conf.get_multidns_info(req.id_client)["multidns"]
                 domain_tmp = ".".join([domains[0]["RR"], domains[0]["Domain"]])
                 logger.info(f"接收到请求: ClientID={req.id_client} domain={domain_tmp} {ip=}")
 

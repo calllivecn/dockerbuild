@@ -15,9 +15,8 @@ from pathlib import Path
 
 from utils import (
     CFG,
-    readcfg,
+    readcfg2,
     Request,
-    DDNSPacketError,
 )
 
 import logs
@@ -121,19 +120,20 @@ def main():
     if args.debug:
         logger.setLevel(logging.DEBUG)
     
-    cfg = readcfg(CFG, CONF)
+    cfg = readcfg2(CFG, CONF)
 
-    addr = cfg.get("Client", "Address")
-    port = cfg.getint("Client", "Port")
+    client = cfg["Client"]
+    addr = client["Address"]
+    port = client["Port"]
 
-    interval = cfg.getint("Client", "Interval")
-    clientid = cfg.getint("Client", "ClientId")
+    interval = client["Interval"]
+    clientid = client["ClientId"]
 
     secret = cfg.get("Client", "Secret")
     server_secret = cfg.get("Client", "ServerSecret")
 
-    timeout = cfg.getfloat("Client", "TimeOut")
-    retry = cfg.getint("Client", "Retry")
+    timeout = client["TimeOut"]
+    retry = client["Retry"]
     
 
     while True:

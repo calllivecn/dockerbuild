@@ -12,12 +12,20 @@ import struct
 import hashlib
 import logging
 import ipaddress
-import configparser
 from pathlib import Path
-from configparser import NoOptionError, NoSectionError
 
+from typing import (
+    Dict,
+)
+
+try:
+    import tomllib
+except ModuleNotFoundError:
+    import tomli as tomllib
 
 import logs
+
+
 
 
 logger = logging.getLogger(logs.LOGNAME)
@@ -28,7 +36,7 @@ PWD = PYZ_PATH.parent
 
 NAME, ext = os.path.splitext(PYZ_PATH.name)
 
-CFG = PWD / (NAME + ".conf")
+CFG = PWD / (NAME + ".toml")
 
 
 # 回环地址：127.0.0.0/8
@@ -115,10 +123,11 @@ def get_self_ipv6():
 
 # print(get_self_ip())
 
-def readcfg(f, cfg):
+
+def readcfg2(f: Path, cfg: str) -> Dict:
     if f.exists() and f.is_file():
-        conf = configparser.ConfigParser()
-        conf.read(str(f))
+        with open(f, "rb") as fp:
+            conf = tomllib.load(fp)
     else:
         with open(f, "w") as fp:
             fp.write(cfg)
@@ -127,6 +136,7 @@ def readcfg(f, cfg):
         sys.exit(1)
     
     return conf
+
 
 
 class DDNSPacketError(Exception):
