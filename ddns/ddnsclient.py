@@ -4,14 +4,12 @@
 # author calllivecn <calllivecn@outlook.com>
 
 
-import os
 import sys
 import time
 import socket
 import logging
 import argparse
 import traceback
-from pathlib import Path
 
 from utils import (
     CFG,
@@ -122,18 +120,18 @@ def main():
     
     cfg = readcfg2(CFG, CONF)
 
-    client = cfg["Client"]
-    addr = client["Address"]
-    port = client["Port"]
+    c = cfg["Client"]
+    addr = c["Address"]
+    port = c["Port"]
 
-    interval = client["Interval"]
-    clientid = client["ClientId"]
+    interval = c["Interval"]
+    clientid = c["ClientId"]
 
-    secret = cfg.get("Client", "Secret")
-    server_secret = cfg.get("Client", "ServerSecret")
+    secret = c["Secret"]
+    server_secret = c["ServerSecret"]
 
-    timeout = client["TimeOut"]
-    retry = client["Retry"]
+    timeout = c["TimeOut"]
+    retry = c["Retry"]
     
 
     while True:

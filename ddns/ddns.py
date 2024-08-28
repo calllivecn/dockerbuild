@@ -3,7 +3,6 @@
 # date 2022-03-15 12:40:54
 # author calllivecn <calllivecn@outlook.com>
 
-import os
 import sys
 import time
 import json
@@ -11,7 +10,6 @@ import socket
 import logging
 import argparse
 import traceback
-from pathlib import Path
 from threading import Thread
 
 import pprint
@@ -403,7 +401,6 @@ def server(conf: Conf):
         if client_secret is not None and req.verify(client_secret):
             logger.debug(f"Cache={conf.client_cache}")
             c_check = conf.cache_check(req.id_client, ip)
-            # logger.info(f"接收到请求: ClientID={req.id_client} {ip=}")
 
             if c_check == 0:
 
@@ -413,7 +410,7 @@ def server(conf: Conf):
 
                 domains = conf.get_multidns_info(req.id_client)["multidns"]
                 domain_tmp = ".".join([domains[0]["RR"], domains[0]["Domain"]])
-                logger.info(f"接收到请求: ClientID={req.id_client} domain={domain_tmp} {ip=}")
+                logger.debug(f"接收到请求: ClientID={req.id_client} domain={domain_tmp} {ip=}")
 
                 # 使用线程更新
                 th = Thread(target=multi_update_dns, args=(alidns, domains, ip), daemon=True)
