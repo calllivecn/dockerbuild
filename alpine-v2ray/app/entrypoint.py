@@ -23,78 +23,19 @@ from urllib import (
     error,
 )
 from threading import (
-    Lock,
     Thread,
 )
 from concurrent.futures import ThreadPoolExecutor
 from logging.handlers import TimedRotatingFileHandler
 
 
-V2RAY_CONFIG_JSON = {
-    "log": {
-        "loglevel": "info",
-        "access": "access.logs",
-        "error": "error.logs"
-    },
-    "inbounds": [
-        {
-            "port": 9999,
-            "protocol": "http",
-            "sniffing": {
-                "enabled": True,
-                "destOverride": ["http", "tls"]
-            },
-            "settings": {
-                "auth": "noauth"
-            }
-        },
-        {
-            "port": 10000,
-            "protocol": "socks",
-            "sniffing": {
-                "enabled": True,
-                "destOverride": ["http", "tls"]
-            },
-            "settings": {
-                "auth": "noauth"
-            }
-        }
-    ],
-    "outbounds": [
-        {
-            "protocol": "vmess",
-            "settings": {
-                "vnext": [
-                    {
-                        "address": "{VMESS_ADDR}",
-                        "port": "{VMESS_PORT}",
-                        "users": [
-                            {
-                                "id": "{VMESS_UUID}",
-                                "alterId": "{VMESS_AID}"
-                            }
-                        ]
-                    }
-                ]
-            }
-        },
-        {
-            "protocol": "shadowsocks",
-            "settings":{
-                "servers": [
-                    {
-                        "address": "{SS_ADDR}",
-                        "port": "{SS_PORT}",
-                        "method": "aes-256-gcm",
-                        "password": "{PW}",
-                        "ota": False,
-                        "level": 0
-                    }
-                ]
-            }
-        }
-    ]
-}
+V2RAY_CONFIG_JSON = None
+
+def readcfg():
+    global V2RAY_CONFIG_JSON
+    config = Path(sys.argv[0]).parent / "config.json"
+    with open(config) as f:
+        V2RAY_CONFIG_JSON = json.load(f)
 
 
 class Loger:
@@ -128,7 +69,15 @@ log = Loger()
 logger = log.get_logger()
 
 
-HEADERS={"User-Agent": "curl/7.81.0"}
+HTTPX=True
+try:
+    import httpx
+except ModuleNotFoundError:
+    HTTPX=False
+    logger.warning(f"没有httpx[http2]... 使用标准库 urllib")
+
+
+HEADERS = {"User-Agent": "curl/8.5.0"}
 
 def runtime(prompt):
     def decorator(func):
@@ -142,11 +91,23 @@ def runtime(prompt):
     return decorator
 
 
+# 这是标准库的版本保留下。
+"""
 def get(url):
     req = request.Request(url, headers=HEADERS, method="GET")
     data = request.urlopen(req, timeout=30)
     context = data.read()
     return context
+"""
+
+
+def get2(url):
+    # r = httpx.get(url, headers=HEADERS, modeht)
+
+    with httpx.Client(http2=True, timeout=30) as client:
+        r = client.get(url, headers=HEADERS)
+
+    return r.text
 
 
 def getenv(key):
@@ -168,7 +129,7 @@ def check_b64(data):
 #
 ##################
 
-
+readcfg()
 
 SERVER_URL = getenv("SERVER_URL")
 logger.debug(f"SERVER_URL: {SERVER_URL}")
@@ -187,7 +148,8 @@ def check_subscription():
     if API is not None:
 
         try:
-            result = get(API)
+            # result = get(API)
+            result = get2(API)
         except Exception as e:
             logger.warning("".join(traceback.format_exception(e)))
             logger.warning(f"请求流量使用信息出错")
@@ -215,6 +177,7 @@ def signal_handle(subproc):
 # 访问 google 测试连通性
 def testproxy(url="https://www.google.com/"):
 
+    # 这是使用标准库的方式
     req = request.Request(url, headers=HEADERS)
 
     proxy_handler = request.ProxyHandler({"http": "[::1]:9999", "https": "[::1]:9999"})
@@ -245,9 +208,44 @@ def testproxy(url="https://www.google.com/"):
         if not result:
             time.sleep(wait_sleep)
             continue
+    
 
     return result
 
+
+# 使用httpx + http2
+def testproxy2(url="https://www.google.com/"):
+
+    proxy="http://[::1]:9999"
+    client = httpx.Client(http2=True, proxy=proxy, timeout=15)
+
+    result = True
+    wait_sleep = 3
+    for i in range(5):
+        try:
+            html_text = client.get(url, headers=HEADERS).text
+            result = True
+            break
+        except socket.timeout:
+            logger.warning(f"联通性测试超时。sleep({wait_sleep}) retry {i}/5。")
+            result = False
+        except ConnectionRefusedError as e:
+            logger.warning(f"可能才刚启动，代理还没准备好。sleep({wait_sleep}) retry {i}/5")
+            result = False
+        except error.URLError as e:
+            logger.warning(f"联通性测试失败。sleep({wait_sleep}) retry {i}/5。")
+            result = False
+        except Exception as e:
+            logger.warning("".join(traceback.format_exception(e)))
+            result = False
+
+        if not result:
+            time.sleep(wait_sleep)
+            continue
+    
+    client.close()
+
+    return result
 
 
 def decode_subscription(context):
@@ -317,17 +315,6 @@ def test_connect(addr: tuple[str, int]) -> int:
 
 # 目前先只支持TCP
 @runtime("测试链接速度")
-def test_connect_speed(vmess_list):
-    score = []
-    for vmess in vmess_list:
-        t = test_connect((vmess["add"], vmess["port"]))
-        if t is not None:
-            score.append((t, vmess))
-
-    return sorted(score, key=lambda x: x[0])
-
-
-@runtime("测试链接速度")
 def test_connect_speed_thread(vmess_list):
     score = []
 
@@ -375,14 +362,14 @@ def updatecfg(vmess_json):
 def v2ray(config):
 
     # v4.xx.x
-    #subproc = subprocess.Popen(f"/v2ray/v2ray -config {config}".split())
+    #subproc = subprocess.run(f"/v2ray/v2ray -config {config}".split())
 
     # v5.0.x
     p = V2RAY_PATH / "v2ray"
     if p.exists():
-        subproc = subprocess.Popen(f"{p} run".split(), cwd=V2RAY_PATH)
+        subproc = subprocess.run([str(p), "run"], cwd=V2RAY_PATH)
     else:
-        subproc = subprocess.Popen(f"/v2ray/v2ray run".split(), cwd=V2RAY_PATH)
+        subproc = subprocess.run(["/v2ray/v2ray", "run"], cwd=V2RAY_PATH)
 
     return subproc
 
@@ -472,7 +459,8 @@ class JustMySock:
         t = time.time()
         if (t - self._t_init) > self.MIN_INTERVAL:
             logger.info(f"更新节点信息...")
-            self.server_info = get(SERVER_URL)
+            # self.server_info = get(SERVER_URL)
+            self.server_info = get2(SERVER_URL)
             check_subscription()
             self._t_init = t
         else:
@@ -490,7 +478,6 @@ class JustMySock:
 
     def test_speed(self):
         self.proxys = decode_subscription(self.server_info)
-        # speed_sorted = test_connect_speed(self.proxys["vmess"])
         speed_sorted = test_connect_speed_thread(self.proxys["vmess"])
         logger.info("测试连接延时:\n" + pprint.pformat(speed_sorted))
         if len(speed_sorted) == 0:
@@ -512,10 +499,7 @@ def main():
 
     logger.info(f"每 {UPDATE_INTERVAL} 小时更新节点信息")
 
-    v2ray_log_dir = V2RAY_PATH
-
     v2ray_config = V2RAY_PATH / "config.json"
-
 
     v2ray_process = v2ray_manager(v2ray_config)
 

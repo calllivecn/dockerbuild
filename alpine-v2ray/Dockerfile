@@ -5,14 +5,11 @@ FROM alpine-py3:latest
 #COPY run-build.sh entrypoint.py v2ray-linux-64.zip /
 # 直接 -v <v2ray_dir>:/v2ray 挂载方式
 
-#COPY run-build.sh entrypoint.py /
-COPY entrypoint.py /
+COPY app/ /app
 
-#RUN sh /run-build.sh
+RUN pip install --break-system-packages httpx[http2]
 
-#CMD [""]
+ENTRYPOINT ["/app/entrypoint.py"]
 
-ENTRYPOINT ["/entrypoint.py"]
-
-#WORKDIR /work
+#WORKDIR /v2ray
 
