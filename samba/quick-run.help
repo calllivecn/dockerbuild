@@ -13,6 +13,6 @@ echo "samba password: \$PW"
 docker run -itd --name samba --restart on-failure:3 -e PW="your password" -e UID=$(id -u) -v "只读分享目录":/ro -v "读写分享目录":/rw -p 445:445 samba:latest
 
 # 需要 安装 cifs-utils
-mount -t cifs -o user=<user>[,pass=<pw>][,port=<port>],uid=$UID //ip/dir/ /mount_dir
+mount -t cifs -o user=<user>[,pass=<pw>][,port=<port>],uid=$UID,_netdev //ip/dir/ /mount_dir
 or
-mount -t cifs -o username=<user>[,password=<pw>][,port=<port>],uid=$UID //ip/dir/ /mount_dir
+mount -t cifs -o username=<user>[,password=<pw>][,port=<port>],uid=$UID,_netdev //ip/dir/ /mount_dir
