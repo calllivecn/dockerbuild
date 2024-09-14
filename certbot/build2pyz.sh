@@ -33,10 +33,10 @@ trap clean SIGINT SIGTERM EXIT ERR
 
 #cp -rv ali_dns.py tencent_dns.py "$TMP"
 
-shiv --site-packages "$TMP" --compressed -p '/usr/bin/python3 -sE' -o "${NAME}.pyz" -e certbot.main:main
+shiv --site-packages "$TMP" --compressed -p '/usr/bin/python -sE' -o "${NAME}.pyz" -e certbot.main:main
 
 # 打包ali_dns.pyz
-cp -rv ali_dns.py "$TMP"
-shiv --site-packages "$TMP" --compressed -p '/usr/bin/python3 -sE' -o "ali_dns.pyz" -e ali_dns:main
+cp -rvL ali_dns.py aliyunlib.py "$TMP"
+shiv --site-packages "$TMP" --compressed -p '/usr/bin/python -sE' -o "ali_dns.pyz" -e ali_dns:main
 
 
