@@ -7,7 +7,7 @@ FROM alpine-py3:latest
 
 COPY app/ /app
 
-RUN pip install --break-system-packages httpx[http2]
+RUN pip install --break-system-packages httpx[http2,socks]
 
 ENTRYPOINT ["/app/entrypoint.py"]
 

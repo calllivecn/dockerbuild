@@ -18,7 +18,6 @@ import subprocess
 from queue import Queue
 from pathlib import Path
 from urllib import (
-    parse,
     request,
     error,
 )
@@ -65,6 +64,8 @@ class Loger:
     def get_logger(self):
         return self.logger
 
+
+# 2024-09-15 改为使用标准输出，查看时使用pdman logs --tail 1000 <container_name>
 log = Loger()
 logger = log.get_logger()
 
@@ -140,7 +141,8 @@ V2RAY_PATH = Path(os.environ.get("V2RAY_PATH", "/v2ray"))
 # 多久更新一次 unit hour
 UPDATE_INTERVAL = int(os.environ.get("UPDATE_INTERVAL", "3"))
 
-log.set_logfile(V2RAY_PATH)
+# 是否也输出到文件里
+# log.set_logfile(V2RAY_PATH)
 
 # 查看当前流量使用情况，和到期时间。
 def check_subscription():
@@ -185,7 +187,7 @@ def testproxy(url="https://www.google.com/"):
     logger.debug(f"proxy req.headers -->: {req.headers}")
     opener = request.build_opener(proxy_handler)
 
-    result = True
+    result = False
     wait_sleep = 3
     for i in range(5):
         try:
@@ -194,21 +196,16 @@ def testproxy(url="https://www.google.com/"):
             break
         except socket.timeout:
             logger.warning(f"联通性测试超时。sleep({wait_sleep}) retry {i}/5。")
-            result = False
         except ConnectionRefusedError as e:
             logger.warning(f"可能才刚启动，代理还没准备好。sleep({wait_sleep}) retry {i}/5")
-            result = False
         except error.URLError as e:
             logger.warning(f"联通性测试失败。sleep({wait_sleep}) retry {i}/5。")
-            result = False
         except Exception as e:
             logger.warning("".join(traceback.format_exception(e)))
-            result = False
 
         if not result:
             time.sleep(wait_sleep)
             continue
-    
 
     return result
 
@@ -219,7 +216,7 @@ def testproxy2(url="https://www.google.com/"):
     proxy="http://[::1]:9999"
     client = httpx.Client(http2=True, proxy=proxy, timeout=15)
 
-    result = True
+    result = False
     wait_sleep = 3
     for i in range(5):
         try:
@@ -228,16 +225,12 @@ def testproxy2(url="https://www.google.com/"):
             break
         except socket.timeout:
             logger.warning(f"联通性测试超时。sleep({wait_sleep}) retry {i}/5。")
-            result = False
         except ConnectionRefusedError as e:
             logger.warning(f"可能才刚启动，代理还没准备好。sleep({wait_sleep}) retry {i}/5")
-            result = False
         except error.URLError as e:
             logger.warning(f"联通性测试失败。sleep({wait_sleep}) retry {i}/5。")
-            result = False
         except Exception as e:
             logger.warning("".join(traceback.format_exception(e)))
-            result = False
 
         if not result:
             time.sleep(wait_sleep)
@@ -525,7 +518,8 @@ def main():
         sleep_interval = 60*5
         for i in range(0, days, sleep_interval):
             pt1 = time.time()
-            tf = testproxy()
+            # tf = testproxy()
+            tf = testproxy2()
             pt2 = time.time()
             if tf:
                 logger.info(f"联通性测试ok")
