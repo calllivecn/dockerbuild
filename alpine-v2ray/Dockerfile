@@ -1,5 +1,4 @@
 FROM alpine-py3:latest
-
  
 # 这个时间（2022-02-15）github 不知道怎么了，wget -O 不能下载 ， 先临时 COPY 下。
 #COPY run-build.sh entrypoint.py v2ray-linux-64.zip /
@@ -10,6 +9,9 @@ COPY app/ /app
 RUN pip install --break-system-packages httpx[http2,socks]
 
 ENTRYPOINT ["/app/entrypoint.py"]
+
+# podman OCI 不支持 healthcheck 。。。。
+#HEALTHCHECK --start-period=15s --interval=5m --timeout=10s CMD curl -X http://[::1]:9999 || exit 1
 
 #WORKDIR /v2ray
 
