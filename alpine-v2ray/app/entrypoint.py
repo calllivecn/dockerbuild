@@ -211,32 +211,30 @@ def testproxy(url="https://www.google.com/"):
 
 
 # 使用httpx + http2
-def testproxy2(url="https://www.google.com/"):
-
-    proxy="http://[::1]:9999"
-    client = httpx.Client(http2=True, proxy=proxy, timeout=15)
+def testproxy2(url="https://www.google.com/", proxy="http://[::1]:9999") -> bool:
 
     result = False
-    wait_sleep = 3
-    for i in range(5):
-        try:
-            html_text = client.get(url, headers=HEADERS).text
-            result = True
-            break
-        except socket.timeout:
-            logger.warning(f"联通性测试超时。sleep({wait_sleep}) retry {i}/5。")
-        except ConnectionRefusedError as e:
-            logger.warning(f"可能才刚启动，代理还没准备好。sleep({wait_sleep}) retry {i}/5")
-        except error.URLError as e:
-            logger.warning(f"联通性测试失败。sleep({wait_sleep}) retry {i}/5。")
-        except Exception as e:
-            logger.warning("".join(traceback.format_exception(e)))
 
-        if not result:
-            time.sleep(wait_sleep)
-            continue
-    
-    client.close()
+    with httpx.Client(http2=True, proxy=proxy, timeout=15) as client:
+
+        wait_sleep = 3
+        for i in range(5):
+            try:
+                html_text = client.get(url, headers=HEADERS).text
+                result = True
+                break
+            except (socket.timeout, httpx.ConnectTimeout):
+                logger.warning(f"联通性测试超时。sleep({wait_sleep}) retry {i}/5。")
+            except ConnectionRefusedError as e:
+                logger.warning(f"可能才刚启动，代理还没准备好。sleep({wait_sleep}) retry {i}/5")
+            except error.URLError as e:
+                logger.warning(f"联通性测试失败。sleep({wait_sleep}) retry {i}/5。")
+            except Exception as e:
+                logger.warning("".join(traceback.format_exception(e)))
+
+            if not result:
+                time.sleep(wait_sleep)
+                continue
 
     return result
 
@@ -352,43 +350,6 @@ def updatecfg(vmess_json):
         f.write(json.dumps(V2RAY_CONFIG_JSON, ensure_ascii=False, indent=4))
 
 
-def v2ray(config):
-
-    # v4.xx.x
-    #subproc = subprocess.run(f"/v2ray/v2ray -config {config}".split())
-
-    # v5.0.x
-    p = V2RAY_PATH / "v2ray"
-    if p.exists():
-        subproc = subprocess.run([str(p), "run"], cwd=V2RAY_PATH)
-    else:
-        subproc = subprocess.run(["/v2ray/v2ray", "run"], cwd=V2RAY_PATH)
-
-    return subproc
-
-
-def reboot(subproc, config):
-
-    for i in range(5):
-        recode = subproc.terminate()
-
-        if subproc.poll() is not None:
-            break
-
-        logger.info(f"terminate() retry {i}/5")
-        if recode is None:
-            time.sleep(1)
-        else:
-            logger.info(f"terminate() ok")
-            break
-
-    # 如果 subprc 是结束，send_signal() 什么也不做。
-    # subproc.send_signal(9)
-
-    new_subproc = v2ray(config)
-    logger.info(f"v2ray pid: {new_subproc.pid}")
-    return new_subproc
-
 
 class v2ray_manager:
     """
@@ -406,25 +367,44 @@ class v2ray_manager:
         self._running = False
         self._exit = False
 
-    def __start(self):
-        self.th = Thread(target=self.__v2ray, daemon=True)
-        self.th.start()
-        self._running = True
+
+    def v2ray(self, config: Path = None):
+
+        # v4.xx.x
+        #subproc = subprocess.run(f"/v2ray/v2ray -config {config}".split())
+
+        # v5.0.x
+        p = V2RAY_PATH / "v2ray"
+        if p.exists():
+            subproc = subprocess.run([str(p), "run"], cwd=V2RAY_PATH)
+        else:
+            subproc = subprocess.run(["/v2ray/v2ray", "run"], cwd=V2RAY_PATH)
+
+        return subproc
+
 
     def reboot(self):
-        if self._running:
+        if self._running and hasattr(self, "p"):
             self.p.terminate()
         else:
             self.__start()
+
     
     def kill(self):
         self._exit = True
         self.p.terminate()
 
+
+    def __start(self):
+        self.th = Thread(target=self.__v2ray, daemon=True)
+        self.th.start()
+        self._running = True
+
+
     def __v2ray(self):
 
         while True:
-            self.p = v2ray(self.config)
+            self.p = self.v2ray(self.config)
             logger.info(f"启动 v2ray pid: {self.p.pid}")
             recode = self.p.wait()
 
