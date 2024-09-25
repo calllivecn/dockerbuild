@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import json
+import queue
 import base64
 import pprint
 import socket
@@ -15,7 +16,6 @@ import logging
 import argparse
 import traceback
 import subprocess
-from queue import Queue
 from pathlib import Path
 from urllib import (
     request,
@@ -37,7 +37,7 @@ def readcfg():
         V2RAY_CONFIG_JSON = json.load(f)
 
 
-class Loger:
+class Logger:
 
     def __init__(self, level=logging.INFO):
 
@@ -66,7 +66,7 @@ class Loger:
 
 
 # 2024-09-15 改为使用标准输出，查看时使用pdman logs --tail 1000 <container_name>
-log = Loger()
+log = Logger()
 logger = log.get_logger()
 
 
@@ -171,7 +171,6 @@ def check_subscription():
 
 
 def signal_handle(subproc):
-    # subproc.terminate()
     subproc.kill()
     sys.exit(0)
 
@@ -223,9 +222,9 @@ def testproxy2(url="https://www.google.com/", proxy="http://[::1]:9999") -> bool
                 html_text = client.get(url, headers=HEADERS).text
                 result = True
                 break
-            except (socket.timeout, httpx.ConnectTimeout):
+            except httpx.ConnectTimeout:
                 logger.warning(f"联通性测试超时。sleep({wait_sleep}) retry {i}/5。")
-            except ConnectionRefusedError as e:
+            except httpx.ConnectError:
                 logger.warning(f"可能才刚启动，代理还没准备好。sleep({wait_sleep}) retry {i}/5")
             except error.URLError as e:
                 logger.warning(f"联通性测试失败。sleep({wait_sleep}) retry {i}/5。")
@@ -359,14 +358,11 @@ class v2ray_manager:
     3. 配置更新？
     """
 
-    SIG_REBOOT = 1
-
     def __init__(self, config: Path):
         self.config = config
-        self.q = Queue(4)
-        self._running = False
-        self._exit = False
+        self.q = queue.Queue(1)
 
+        self.start()
 
     def v2ray(self, config: Path = None):
 
@@ -376,52 +372,65 @@ class v2ray_manager:
         # v5.0.x
         p = V2RAY_PATH / "v2ray"
         if p.exists():
-            subproc = subprocess.run([str(p), "run"], cwd=V2RAY_PATH)
+            self.subproc = subprocess.Popen([str(p), "run"], cwd=V2RAY_PATH)
         else:
-            subproc = subprocess.run(["/v2ray/v2ray", "run"], cwd=V2RAY_PATH)
-
-        return subproc
+            self.subproc = subprocess.Popen(["/v2ray/v2ray", "run"], cwd=V2RAY_PATH)
 
 
     def reboot(self):
-        if self._running and hasattr(self, "p"):
-            self.p.terminate()
-        else:
-            self.__start()
+        logger.info(f"发送重启信号...")
+        self.q.put("reboot")
 
     
     def kill(self):
-        self._exit = True
-        self.p.terminate()
+        logger.info(f"发送退出信号...")
+        self.q.put("kill")
 
 
-    def __start(self):
+    def start(self):
         self.th = Thread(target=self.__v2ray, daemon=True)
         self.th.start()
-        self._running = True
 
 
     def __v2ray(self):
 
         while True:
-            self.p = self.v2ray(self.config)
-            logger.info(f"启动 v2ray pid: {self.p.pid}")
-            recode = self.p.wait()
 
-            if self._exit:
-                logger.info(f"terminal() pid:{self.p.pid}")
-                break
+            try:
+                r = self.q.get(timeout=5)
+            except queue.Empty:
+                r = "running"
 
-            logger.info(f"v2ray 退出 recode: {recode}, sleep 1 重启")
-            time.sleep(1)
+            if hasattr(self, "subproc"):
+                # 检测子进程，是否还在运行。如果没有运行，启动新进程。
+                recode = self.subproc.poll()
+                if recode is not None:
+                    self.v2ray(self.config)
+                    logger.info(f"重新启动 v2ray, 旧recode:{recode}, 新pid: {self.subproc.pid}")
 
+
+                if r == "kill":
+                    self.subproc.terminate()
+                    logger.info(f"terminal() pid:{self.subproc.pid}")
+                    break
+
+                elif r == "reboot":
+                    logger.info(f"v2ray 退出 recode: {recode}, sleep 1 重启")
+                    self.subproc.terminate()
+                    self.v2ray(self.config)
+            
+            else:
+                self.v2ray(self.config)
+                logger.info(f"本次首次启动 v2ray pid: {self.subproc.pid}")
+            
 
 class JustMySock:
 
     def __init__(self):
 
         # 连续请求最小间隔
-        self.MIN_INTERVAL = 30
+        # self.MIN_INTERVAL = 30
+        self.MIN_INTERVAL = 180
         self._t_init = 0
 
         self.last_server_info = ""
@@ -507,6 +516,7 @@ def main():
                 logger.warning(f"联通性测试失败, 更新配置或重启。")
                 jms.conne_fail = True
                 break
+
             time.sleep(sleep_interval - (pt2-pt1))
 
 
