@@ -411,12 +411,14 @@ class v2ray_manager:
 
                 if r == "kill":
                     self.subproc.terminate()
+                    self.subproc.wait()
                     logger.info(f"terminal() pid:{self.subproc.pid}")
                     break
 
                 elif r == "reboot":
-                    logger.info(f"v2ray 退出 recode: {recode}, sleep 1 重启")
+                    logger.info(f"v2ray 退出 pid: {self.subproc.pid}, sleep 1 重启")
                     self.subproc.terminate()
+                    self.subproc.wait()
                     self.v2ray(self.config)
             
             else:
