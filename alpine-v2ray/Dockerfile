@@ -10,7 +10,7 @@ RUN pip install --break-system-packages httpx[http2,socks]
 
 ENTRYPOINT ["/app/entrypoint.py"]
 
-# podman OCI 不支持 healthcheck 。。。。
+# podman OCI 不支持 healthcheck 。。。。v4.9
 #HEALTHCHECK --start-period=15s --interval=5m --timeout=10s CMD curl -X http://[::1]:9999 || exit 1
 
 #WORKDIR /v2ray
