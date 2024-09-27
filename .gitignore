@@ -4,6 +4,9 @@ etcd/etcdctl
 confd/confd
 
 __pycache__/
+
+depend-cache/
+
 *.cache
 *.conf
 *.toml
@@ -11,10 +14,7 @@ __pycache__/
 */jdk8/
 */jre8/
 */maven/
-
 *.jar
-
-anyconnect/anyconnect/
 
 
 sshkey
@@ -26,10 +26,8 @@ sshkey.pub
 *.zip
 *.bz2
 *.swp
-depend-cache/
 *.pyz
 *.deb
 *.log
 *.logs
 
-v2ray-subscribe/data/

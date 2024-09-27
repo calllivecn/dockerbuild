@@ -1,0 +1,65 @@
+{
+    "log": {
+        "loglevel": "info",
+        "access": "access.log",
+        "error": "error.log"
+    },
+    "inbounds": [
+        {
+            "port": 9999,
+            "protocol": "http",
+            "sniffing": {
+                "enabled": true,
+                "destOverride": ["http", "tls"]
+            },
+            "settings": {
+                "auth": "noauth"
+            }
+        },
+        {
+            "port": 10000,
+            "protocol": "socks",
+            "sniffing": {
+                "enabled": true,
+                "destOverride": ["http", "tls"]
+            },
+            "settings": {
+                "auth": "noauth"
+            }
+        }
+    ],
+    "outbounds": [
+        {
+            "protocol": "vmess",
+            "settings": {
+                "vnext": [
+                    {
+                        "address": "{VMESS_ADDR}",
+                        "port": "{VMESS_PORT}",
+                        "users": [
+                            {
+                                "id": "{VMESS_UUID}",
+                                "alterId": "{VMESS_AID}"
+                            }
+                        ]
+                    }
+                ]
+            }
+        },
+        {
+            "protocol": "shadowsocks",
+            "settings":{
+                "servers": [
+                    {
+                        "address": "{SS_ADDR}",
+                        "port": "{SS_PORT}",
+                        "method": "aes-256-gcm",
+                        "password": "{PW}",
+                        "ota": false,
+                        "level": 0
+                    }
+                ]
+            }
+        }
+    ]
+}
