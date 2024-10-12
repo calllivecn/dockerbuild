@@ -14,7 +14,7 @@ from threading import Thread
 
 import pprint
 
-from typing import List, Dict, Any
+from typing import Any
 
 from aliyunlib import AliDDNS
 
@@ -163,9 +163,9 @@ class Conf:
     def __init__(self):
         self.conf = readcfg2(CFG, CONF)
 
-        self.clientids: List[Dict[str, Any]] = self.conf["Clients"]
+        self.clientids: list[dict[str, Any]] = self.conf["Clients"]
 
-        self.multidns: Dict[int, Dict[str, Any]] = {}
+        self.multidns: dict[int, dict[str, Any]] = {}
         """
         self.multidns = {
         ClientDI:
@@ -210,7 +210,7 @@ class Conf:
             self.multidns[c_id] = cid
 
 
-    def get_multidns_info(self, id: int) -> Dict[str, Any]:
+    def get_multidns_info(self, id: int) -> dict[str, Any]:
         return self.multidns[id]
 
 

@@ -14,9 +14,6 @@ import logging
 import ipaddress
 from pathlib import Path
 
-from typing import (
-    Dict,
-)
 
 try:
     import tomllib
@@ -124,7 +121,7 @@ def get_self_ipv6():
 # print(get_self_ip())
 
 
-def readcfg2(f: Path, cfg: str) -> Dict:
+def readcfg2(f: Path, cfg: str) -> dict:
     if f.exists() and f.is_file():
         with open(f, "rb") as fp:
             conf = tomllib.load(fp)
