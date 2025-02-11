@@ -320,9 +320,18 @@ def test_connect_speed_thread(vmess_list):
     return sorted(score, key=lambda x: x[0])
 
 
+# 检查是不是s801
+def is_s801(ps: str) -> bool:
+    if "s801." in ps:
+        return True
+    else:
+        return False
+
+
 def updatecfg(vmess_json):
 
     outbounds = []
+    s801 = {}
     for _delay, vmess in vmess_json:
         v = {
             "protocol": "vmess",
@@ -341,8 +350,14 @@ def updatecfg(vmess_json):
                 ]
             }
         }
-        outbounds.append(v)
 
+        if is_s801(vmess["ps"]):
+            v["tag"] = "vmess-out-x10"
+            s801 = v
+        else:
+            outbounds.append(v)
+
+    outbounds.append(s801)
     V2RAY_CONFIG_JSON["outbounds"] = outbounds
 
     with open(V2RAY_PATH / "config.json", "w") as f:

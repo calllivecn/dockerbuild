@@ -26,6 +26,28 @@
             "settings": {
                 "auth": "noauth"
             }
+        },
+        {   "tag": "http-x10",
+            "port": 10001,
+            "protocol": "http",
+            "sniffing": {
+                "enabled": true,
+                "destOverride": ["http", "tls"]
+            },
+            "settings": {
+                "auth": "noauth"
+            }
+        },
+        {   "tag": "socks-x10",
+            "port": 10002,
+            "protocol": "socks",
+            "sniffing": {
+                "enabled": true,
+                "destOverride": ["http", "tls"]
+            },
+            "settings": {
+                "auth": "noauth"
+            }
         }
     ],
     "outbounds": [
@@ -61,5 +83,21 @@
                 ]
             }
         }
-    ]
+    ],
+    "routing": {
+        "strategy": "rules",
+        "settings": {
+          "domainStrategy": "IPIfNonMatch"
+        },
+        "rules": [
+          {   
+            "type": "Field",
+            "inboundTag": [
+              "http-x10",
+              "socks-x10"
+            ],
+            "outboundTag": "vmess-out-x10"
+          }
+        ]
+    }
 }
