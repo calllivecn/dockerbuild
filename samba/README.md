@@ -17,22 +17,26 @@ testparm --show-all-parameters
 
 ## 添加用户
 
+- 方式一：
+
+```sehll
+createuser.sh <username> <password>
+```
+
+- 方式二：
 
 ```
-#  创建本地用户
-useradd -r -s /sbin/nologin  smb1
-
-# 将系统用户添加到samba数据库中并设置密码
-smbpasswd -a smb1
+# 创建本地用户
+useradd -D smb1
 
 #通过pdbedit -L可以查看samba数据库中的用户有哪些，只有在samba数据库中的用户才能访问samba服务端共享资源。
 # 需要root权限，不然会出现错误提醒
 pdbedit -L
 
-# 如果要删除一个samba用户的话，使用 smbpasswd 的 -x 选项可以实现；
+pdbedit -a smb1
 
 # 例如：删除smb1这个用户
-smbpasswd -x  smb1
+pdbedit -x  smb1
 ```
 
 
