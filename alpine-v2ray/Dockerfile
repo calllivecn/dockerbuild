@@ -5,8 +5,10 @@ FROM alpine-py3:latest
 # 直接 -v <v2ray_dir>:/v2ray 挂载方式
 
 COPY app/ /app
+COPY v2ray/ /v2ray
 
-RUN pip install --break-system-packages httpx[http2,socks]
+RUN pip install --break-system-packages httpx[http2,socks] \
+&& mkdir -vp /logs
 
 ENTRYPOINT ["/app/entrypoint.py"]
 

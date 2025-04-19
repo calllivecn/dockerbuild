@@ -1,8 +1,8 @@
 {
     "log": {
         "loglevel": "info",
-        "access": "access.log",
-        "error": "error.log"
+        "access": "/logs/access.log",
+        "error": "/logs/error.log"
     },
     "inbounds": [
         {
