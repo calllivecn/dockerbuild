@@ -7,6 +7,11 @@
 
 - [二进制下载路径](https://github.com/borgbackup/borg/releases)
 
+## 注意事项：
+
+- 远程仓库需要确保远程服务器上安装了相同或兼容版本的 borgbackup
+
+
 ## 创建备份仓库
 
 ```shell
@@ -16,6 +21,9 @@ borg init -e repokey-blake2
 # 可以使用 export BORG_PASSPHRASE="your password"。
 or
 # 还可以使用文件：export BORG_KEY_FILE=~/.config/borg/keys/my.key
+or
+
+# 不使用密码-e none
 ```
 
 ## 定时备份
@@ -29,7 +37,7 @@ borg create --patterns-from path.txt -s ~/borg-backups::{hostname}-{user}-$(date
 - paths.txt 文本文件，一行一个要备份的目录:
 
 ```text
-R pf
+P pf
 R /home/user1/.ssh/
 R /home/.config/systemd/
 R /etc/systemd/
