@@ -1,6 +1,8 @@
 # 使用 Ubuntu 24.04 作为基础镜像
 FROM ubuntu-devel:latest
 
+
+
 # 设置环境变量，方便后续操作
 # ANDROID_SDK_ROOT 是 SDK 的安装位置
 ENV ANDROID_SDK_ROOT /opt/android-sdk
@@ -19,8 +21,14 @@ ENV PATH "$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/pla
 # wget: 下载 Android SDK 命令行工具
 # unzip: 解压下载的工具
 # --no-install-recommends: 避免安装不必要的推荐软件包
-RUN apt update && apt install -y openjdk-17-jdk wget unzip android-tools-adb android-tools-fastboot --no-install-recommends && \
-    rm -rf /var/lib/apt/lists/*
+RUN apt update \
+&& apt install -y openjdk-17-jdk wget unzip android-tools-adb android-tools-fastboot --no-install-recommends \
+&& apt install -y locales \
+&& rm -rf /var/lib/apt/lists/*
+
+# 初始化中文环境
+locale-gen en_US.UTF-8
+locale-gen zh_CN.UTF-8
 
 # 创建 SDK 安装目录
 RUN mkdir -vp $ANDROID_SDK_ROOT/cmdline-tools/latest
