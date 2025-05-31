@@ -500,6 +500,15 @@ public final class CameraVideoRecorder {
             }
             System.out.println("    LENS_FACING (镜头朝向): " + facingStr);
 
+            // 新增：输出支持的帧率范围
+            android.util.Range<Integer>[] fpsRanges = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
+            if (fpsRanges != null) {
+                System.out.println("    支持的帧率范围:");
+                for (android.util.Range<Integer> range : fpsRanges) {
+                    System.out.println("      - " + range);
+                }
+            }
+
             Boolean size_bool = false;
             StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
             if (map != null) {

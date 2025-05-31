@@ -104,6 +104,17 @@ public final class CameraInfo {
                 System.out.println("  支持的视频编码器信息:");
                 printEncoderInfo(characteristics);
 
+                // 新增：打印支持的帧率范围
+                android.util.Range<Integer>[] fpsRanges = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
+                if (fpsRanges != null && fpsRanges.length > 0) {
+                    System.out.println("  支持的帧率范围 (CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES):");
+                    for (android.util.Range<Integer> range : fpsRanges) {
+                        System.out.println("    - " + range.getLower() + " ~ " + range.getUpper() + " fps");
+                    }
+                } else {
+                    System.out.println("  未获取到支持的帧率范围信息。");
+                }
+
                 System.out.println("----------------------------------------");
             }
         } catch (CameraAccessException e) {
