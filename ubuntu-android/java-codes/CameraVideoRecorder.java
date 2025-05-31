@@ -33,10 +33,10 @@ import java.util.concurrent.Semaphore;
 @SuppressLint({"PrivateApi", "BlockedPrivateApi", "SoonBlockedPrivateApi", "DiscouragedPrivateApi", "InternalInsetResource", "DiscouragedApi"})
 public final class CameraVideoRecorder {
 
-    private static final String TAG = "CameraVideoRecorder"; // 调试TAG，实际输出中不会显示
+    private static final String TAG = "CameraVideoRecorder";
 
     // --- 默认 MediaCodec 参数 ---
-    private static String MIME_TYPE = MediaFormat.MIMETYPE_VIDEO_AVC; // H.264 AVC，默认编码器
+    private static String MIME_TYPE = MediaFormat.MIMETYPE_VIDEO_HEVC; // H.265 HEVC，默认编码器
     private static int FRAME_RATE = 30; // 帧率
     private static int I_FRAME_INTERVAL = 1; // I帧间隔 (秒)
     private static int BIT_RATE = 2000000; // 比特率 (2 Mbps)
@@ -81,15 +81,6 @@ public final class CameraVideoRecorder {
         if (showHelp) {
             printHelp();
             System.exit(0);
-        }
-
-        // 根据选择的编码器类型更新默认的输出文件扩展名
-        if (OUTPUT_FILE_PATH.equals("output.video")) {
-            if (MIME_TYPE.equals(MediaFormat.MIMETYPE_VIDEO_HEVC)) {
-                OUTPUT_FILE_PATH = "output.h265";
-            } else if (MIME_TYPE.equals(MediaFormat.MIMETYPE_VIDEO_AVC)) {
-                OUTPUT_FILE_PATH = "output.h264";
-            }
         }
 
         // 使用 InitializeAndroidEnvironment 进行初始化
@@ -157,7 +148,7 @@ public final class CameraVideoRecorder {
                 System.out.println("参数: I_frame_interval = " + I_FRAME_INTERVAL);
             }
             if (argMap.containsKey("bit_rate")) {
-                BIT_RATE = Integer.parseInt(argMap.get("bit_rate"));
+                BIT_RATE = Integer.parseInt(argMap.get("bit_rate")) * 1000000; // 转换为 Mbps
                 System.out.println("参数: bit_rate = " + BIT_RATE);
             }
             if (argMap.containsKey("size")) {
@@ -184,9 +175,19 @@ public final class CameraVideoRecorder {
                 if (codecStr.equals("hevc") || codecStr.equals("h265")) {
                     MIME_TYPE = MediaFormat.MIMETYPE_VIDEO_HEVC;
                     System.out.println("参数: codec = " + codecStr + " (使用 HEVC/H.265 编码)。");
+
                 } else if (codecStr.equals("avc") || codecStr.equals("h264")) {
                     MIME_TYPE = MediaFormat.MIMETYPE_VIDEO_AVC;
                     System.out.println("参数: codec = " + codecStr + " (使用 AVC/H.264 编码)。");
+
+                } else if (codecStr.equals("vp8")) {
+                    MIME_TYPE = MediaFormat.MIMETYPE_VIDEO_VP8;
+                    System.out.println("参数: codec = " + codecStr + " (使用 VP8 编码)。");
+
+                } else if (codecStr.equals("vp9")) {
+                    MIME_TYPE = MediaFormat.MIMETYPE_VIDEO_VP9;
+                    System.out.println("参数: codec = " + codecStr + " (使用 VP9 编码)。");
+
                 } else {
                     System.err.println("警告: 未知的编码器类型: " + codecStr + "。使用默认 AVC/H.264。");
                 }
@@ -214,11 +215,11 @@ public final class CameraVideoRecorder {
         System.out.println("  --help                        : 显示此帮助信息并退出。");
         System.out.println("  frame_rate=<值>             : 设置视频帧率 (例如: 30)。默认值: " + FRAME_RATE);
         System.out.println("  i_frame_interval=<值>       : 设置 I 帧间隔 (秒)。默认值: " + I_FRAME_INTERVAL);
-        System.out.println("  bit_rate=<值>               : 设置视频比特率 (例如: 2000000)。默认值: " + BIT_RATE);
+        System.out.println("  bit_rate=<值>               : 设置视频比特率 (例如: 2Mbps)。默认值: " + BIT_RATE);
         System.out.println("  size=<宽度>x<高度>          : 设置视频分辨率 (例如: 1920x1080)。默认值: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT);
         System.out.println("  output=<文件路径>           : 设置输出文件路径 (例如: /sdcard/video.h264 或 output.h265)。默认值: " + OUTPUT_FILE_PATH);
         System.out.println("  camera_id=<ID>              : 指定要使用的摄像头 ID (例如: 0 或 1)。默认自动选择后置摄像头。");
-        System.out.println("  codec=<类型>                : 设置视频编码器类型 (例如: avc 或 hevc)。默认值: " + (MIME_TYPE.equals(MediaFormat.MIMETYPE_VIDEO_AVC) ? "avc (H.264)" : "hevc (H.265)"));
+        System.out.println("  codec=<类型>                : 设置视频编码器类型 (例如: avc 或 hevc)。默认值: " + (MIME_TYPE.equals(MediaFormat.MIMETYPE_VIDEO_HEVC) ? "avc (H.264)" : "hevc (H.265)"));
         System.out.println("  rotate=<角度>               : 顺时针旋转视频角度 (0, 90, 180, 270)。默认值: " + ROTATE);
         System.out.println("\n示例:");
         System.out.println("  java -jar CameraVideoRecorder.jar output=/sdcard/my_video.h265 size=1920x1080 frame_rate=60 camera_id=0 codec=hevc");
@@ -582,8 +583,7 @@ public final class CameraVideoRecorder {
         }
 
         try {
-            final CaptureRequest.Builder captureRequestBuilder =
-                    mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
+            final CaptureRequest.Builder captureRequestBuilder = mCameraDevice.createCaptureRequest(CameraDevice.TEMPLATE_RECORD);
 
             captureRequestBuilder.addTarget(mEncoderInputSurface);
 
@@ -602,8 +602,7 @@ public final class CameraVideoRecorder {
                         try {
                             captureRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
                             captureRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
-                            captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
-                                    new android.util.Range<>(FRAME_RATE, FRAME_RATE));
+                            captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new android.util.Range<>(FRAME_RATE, FRAME_RATE));
 
                             mCaptureSession.setRepeatingRequest(captureRequestBuilder.build(), null, mCameraHandler);
                             System.out.println("摄像头 setRepeatingRequest 已启动。");
