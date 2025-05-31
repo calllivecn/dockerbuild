@@ -644,6 +644,9 @@ public final class CameraVideoRecorder {
                                 // 设置自动对焦、自动曝光等
                                 captureRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
                                 captureRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
+                                // 新增：设置帧率范围
+                                captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
+                                        new android.util.Range<>(FRAME_RATE, FRAME_RATE));
 
                                 // 开始重复捕获请求
                                 mCaptureSession.setRepeatingRequest(captureRequestBuilder.build(), null, mCameraHandler);

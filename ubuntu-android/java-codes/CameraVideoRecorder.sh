@@ -12,9 +12,17 @@ fi
 
 echo "使用 Android Jar: $ANDROID_JAR"
 
+
+build="build"
+if [ -d "$build" ];then
+	rm -rf "$build"
+fi
+
+
 # 编译 Java 文件，生成 .class 文件
 # -source 1.8 -target 1.8 确保兼容性
-javac -source 1.8 -target 1.8 -classpath "$ANDROID_JAR" CameraVideoRecorder.java
+# --release 8 是 Java 8 的简写
+javac --release 8 -classpath "$ANDROID_JAR" CameraVideoRecorder.java InitializeAndroidEnvironment.java -d "$build"
 
 # 检查编译是否成功
 if [ $? -ne 0 ]; then
@@ -24,14 +32,21 @@ fi
 
 echo "Java 代码编译成功。"
 
+pushd "$build"
+# 使用 d8 将 .class 文件转换为 .dex 文件, --min-api 28 确保兼容性(28 对应 Android 9)
+d8 *.class --min-api 28 --output . 
+
 # 将 .class 文件打包成 .jar 文件
-jar -cvf CameraVideoRecorder.jar CameraVideoRecorder.class
+# jar -cvf CameraVideoRecorder.jar CameraVideoRecorder.class
+mv -v classes.dex ../CameraVideoRecorder.dex
+popd
 
 # 检查 jar 包是否生成
-if [ ! -f CameraVideoRecorder.jar ]; then
-    echo "Jar 包创建失败。"
+if [ -f CameraVideoRecorder.jar ] || [ -f CameraVideoRecorder.dex ];then
+    echo "Jar 或 dex 包创建成功。"
+else
+    echo "Jar or dex 包创建失败。"
     exit 1
 fi
 
-echo "CameraVideoRecorder.jar 已创建。"
 
