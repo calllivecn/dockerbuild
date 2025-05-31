@@ -1,5 +1,5 @@
 // 这个是测试成功的 (请注意，这是一个复杂且依赖于 Android 内部 API 的示例，可能需要 root 权限)
-// 此版本添加了通过 Unix 域套接字发送编码后视频数据的功能，并在客户端连接/断开时控制录制。
+// 此版本添加了通过 TCP 套接字发送编码后视频数据的功能，并在客户端连接/断开时控制录制。
 
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -18,29 +18,23 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Looper;
 import android.util.Size;
-import android.util.Range; // 导入 Range
+import android.util.Range;
 import android.view.Surface;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket; // 仍然需要导入，尽管TCP服务器被移除，但其他地方可能依赖
-import java.net.Socket; // 仍然需要导入
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.nio.channels.ServerSocketChannel;
-import java.nio.channels.SocketChannel;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.net.UnixDomainSocketAddress; // 需要 Java 16+
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CopyOnWriteArrayList; // 用于线程安全的客户端列表
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -60,17 +54,14 @@ public final class CameraServer {
     private static int ROTATE = 0; // 新增：旋转角度，默认0度
 
     // --- 命令行参数接收的变量 ---
-    // private static int TCP_PORT = 8080; // 移除 TCP 端口
-    private static String UNIX_SOCKET_PATH = "/tmp/camera.sock"; // 默认使用 Unix 域套接字路径
     private static String CAMERA_ID_TO_USE = null; // 默认不指定，让程序自动选择后置摄像头
 
     // --- 网络相关 ---
-    // private ServerSocket mServerSocket; // 移除 TCP Server Socket
-    private ServerSocketChannel mUnixServerSocketChannel; // Unix Domain Socket Server Channel (Java 16+)
-    // private List<Socket> mTcpClients = new CopyOnWriteArrayList<>(); // 移除 TCP 客户端列表
-    private List<SocketChannel> mUnixClients = new CopyOnWriteArrayList<>(); // Unix 客户端列表 (Java 16+)
-    // private Thread mTcpServerThread; // 移除 TCP Server Thread
-    private Thread mUnixServerThread; // Unix Domain Socket Server Thread (Java 16+)
+    private static int TCP_PORT = 58888; // 改为非 final
+    private static String TCP_HOST = "::1"; // 改为非 final
+    private ServerSocket mServerSocket;
+    private List<Socket> mTcpClients = new CopyOnWriteArrayList<>();
+    private Thread mTcpServerThread;
 
     // --- Android 环境设置 ---
     private static Context sContext; // 直接使用 InitializeAndroidEnvironment 获取的 Context
@@ -89,12 +80,10 @@ public final class CameraServer {
     private Handler mEncoderHandler;
     private boolean mIsRecording = false;
 
-    // 新增：相机专用的单线程执行器
-    private final Executor mCameraExecutor = Executors.newSingleThreadExecutor();
-
     private static boolean showHelp = false; // 添加 showHelp 标志
 
     public static void main(String[] args) {
+
         System.out.println(TAG + " 已启动。");
 
         // 解析命令行参数
@@ -105,14 +94,6 @@ public final class CameraServer {
             printHelp();
             System.exit(0);
         }
-
-        // 必须指定 Unix 域套接字路径
-        if (UNIX_SOCKET_PATH == null) {
-             System.err.println("致命错误: 未指定 Unix 域套接字路径。请使用 unix_socket_path 参数指定。");
-             printHelp();
-             System.exit(1);
-        }
-
 
         // 使用 InitializeAndroidEnvironment 进行初始化
         try {
@@ -126,7 +107,8 @@ public final class CameraServer {
 
         CameraServer server = new CameraServer();
         try {
-            server.startServer(); // 启动网络服务器 (只启动 Unix Socket)
+            System.out.println("启动网络服务器 (只启动 Unix Socket)");
+            server.startServer();
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 System.out.println("检测到 CTRL+C（或其他关闭信号），正在清理资源...");
@@ -135,7 +117,7 @@ public final class CameraServer {
                 System.out.println("服务器已停止。");
             }));
 
-            // 主线程保持运行，直到收到中断信号
+            System.out.println("主线程保持运行，直到收到中断信号");
             while (!Thread.currentThread().isInterrupted()) {
                 try {
                     Thread.sleep(1000);
@@ -150,7 +132,7 @@ public final class CameraServer {
             Thread.currentThread().interrupt(); // 恢复中断状态
         }
         */ catch (Exception e) {
-            System.err.println("服务器过程中发生错误: " + e.getMessage());
+            System.err.println("服务器过程中发生错误: " + e.getClass().getName() + ": " + e.getMessage());
             e.printStackTrace(System.err);
         } finally {
             // server.releaseResources(); // 移除此行，清理已在 shutdown hook 中处理
@@ -175,6 +157,14 @@ public final class CameraServer {
         }
 
         try {
+            if (argMap.containsKey("tcp_addr")) {
+                TCP_HOST = argMap.get("tcp_addr");
+                System.out.println("参数: tcp_addr = " + TCP_HOST);
+            }
+            if (argMap.containsKey("tcp_port")) {
+                TCP_PORT = Integer.parseInt(argMap.get("tcp_port"));
+                System.out.println("参数: tcp_port = " + TCP_PORT);
+            }
             if (argMap.containsKey("frame_rate")) {
                 FRAME_RATE = Integer.parseInt(argMap.get("frame_rate"));
                 System.out.println("参数: frame_rate = " + FRAME_RATE);
@@ -197,15 +187,6 @@ public final class CameraServer {
                 } else {
                     System.err.println("警告: 无效的尺寸格式: " + sizeStr + "。使用默认 1280x720。");
                 }
-            }
-            // 移除 tcp_port 参数解析
-            // if (argMap.containsKey("tcp_port")) {
-            //     TCP_PORT = Integer.parseInt(argMap.get("tcp_port"));
-            //     System.out.println("参数: tcp_port = " + TCP_PORT);
-            // }
-            if (argMap.containsKey("unix_socket_path")) {
-                UNIX_SOCKET_PATH = argMap.get("unix_socket_path");
-                System.out.println("参数: unix_socket_path = " + UNIX_SOCKET_PATH);
             }
             if (argMap.containsKey("camera_id")) {
                 CAMERA_ID_TO_USE = argMap.get("camera_id");
@@ -248,9 +229,8 @@ public final class CameraServer {
         System.out.println("  i_frame_interval=<值>       : 设置 I 帧间隔 (秒)。默认值: " + I_FRAME_INTERVAL);
         System.out.println("  bit_rate=<值>               : 设置视频比特率 (例如: 2)。单位 Mbps。默认值: " + (BIT_RATE / 1000000) + "Mbps");
         System.out.println("  size=<宽度>x<高度>          : 设置视频分辨率 (例如: 1920x1080)。默认值: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT);
-        // 移除 tcp_port 帮助信息
-        // System.out.println("  tcp_port=<端口号>           : 设置 TCP 监听端口。默认值: " + TCP_PORT);
-        System.out.println("  unix_socket_path=<路径>     : 设置 Unix 域套接字路径 (需要 Java 16+)。默认值: " + UNIX_SOCKET_PATH);
+        System.out.println("  tcp_addr=<地址>               : 设置 TCP 监听地址。默认值: " + TCP_HOST);
+        System.out.println("  tcp_port=<端口号>             : 设置 TCP 监听端口。默认值: " + TCP_PORT);
         System.out.println("  camera_id=<ID>              : 指定要使用的摄像头 ID (例如: 0 或 1)。默认自动选择后置摄像头。");
         System.out.println("  codec=<类型>                : 设置视频编码器类型 (例如: avc 或 hevc)。默认值: " + (MIME_TYPE.equals(MediaFormat.MIMETYPE_VIDEO_AVC) ? "avc (H.264)" : "hevc (H.265)"));
         System.out.println("  rotate=<角度>               : 顺时针旋转视频角度 (0, 90, 180, 270)。默认值: " + ROTATE);
@@ -261,61 +241,45 @@ public final class CameraServer {
 
     // --- 启动网络服务器 ---
     public void startServer() throws IOException {
-        // 启动 Unix 域套接字服务器线程 (如果指定了路径且 Java 版本支持)
-        if (UNIX_SOCKET_PATH != null) {
-            try {
-                // 尝试删除旧的套接字文件
-                Path socketPath = Paths.get(UNIX_SOCKET_PATH);
-                Files.deleteIfExists(socketPath);
+        try {
+            mServerSocket = new ServerSocket(TCP_PORT, 50, java.net.InetAddress.getByName(TCP_HOST));
+            System.out.println("TCP 服务器已启动，监听 " + TCP_HOST + ":" + TCP_PORT);
 
-                UnixDomainSocketAddress socketAddress = UnixDomainSocketAddress.of(socketPath);
-                // mUnixServerSocketChannel = ServerSocketChannel.open(socketAddress.family()); // 修正 family() 调用
-                mUnixServerSocketChannel = ServerSocketChannel.open(); // 在 Java 17 中直接 open()
-                mUnixServerSocketChannel.bind(socketAddress);
-                System.out.println("Unix 域套接字服务器已启动，监听路径: " + UNIX_SOCKET_PATH);
-
-                mUnixServerThread = new Thread(() -> {
-                    try {
-                        while (!Thread.currentThread().isInterrupted()) {
+            mTcpServerThread = new Thread(() -> {
+                try {
+                    while (!Thread.currentThread().isInterrupted()) {
+                        Socket client = mServerSocket.accept();
+                        System.out.println("新的 TCP 客户端连接: " + client.getRemoteSocketAddress());
+                        boolean wasEmpty = mTcpClients.isEmpty();
+                        mTcpClients.add(client);
+                        if (wasEmpty) {
+                            System.out.println("检测到第一个客户端连接，开始录制...");
                             try {
-                                SocketChannel clientChannel = mUnixServerSocketChannel.accept();
-                                System.out.println("新的 Unix 域套接字客户端连接: " + clientChannel.getRemoteAddress());
-                                boolean wasEmpty = mUnixClients.isEmpty();
-                                mUnixClients.add(clientChannel);
-                                // 如果是第一个客户端连接，开始录制
-                                if (wasEmpty) {
-                                    System.out.println("检测到第一个客户端连接，开始录制...");
-                                    startRecording();
-                                }
-                            } catch (IOException e) {
-                                if (mUnixServerSocketChannel != null && mUnixServerSocketChannel.isOpen()) {
-                                    System.err.println("Unix 域套接字服务器接受连接错误: " + e.getMessage());
-                                }
-                                break; // 如果服务器通道关闭，退出循环
-                            } catch (Exception e) {
-                                System.err.println("处理新客户端连接时发生错误: " + e.getMessage());
-                                e.printStackTrace(System.err);
+                                startRecording();
+                            } catch (Throwable t) {
+                                System.err.println("startRecording() 发生异常: " + t.getClass().getName() + ": " + t.getMessage());
+                                t.printStackTrace(System.err);
                             }
                         }
-                    } catch (Exception e) {
-                        System.err.println("Unix 域套接字服务器线程错误: " + e.getMessage());
-                        e.printStackTrace(System.err);
-                    } finally {
-                        stopServer(); // 确保在线程结束时关闭服务器
                     }
-                }, "UnixServerThread");
-                mUnixServerThread.start();
+                } catch (IOException e) {
+                    if (!mServerSocket.isClosed()) {
+                        System.err.println("TCP 服务器接受连接错误: " + e.getMessage());
+                    }
+                } catch (Throwable t) {
+                    System.err.println("TcpServerThread 未捕获异常: " + t.getClass().getName() + ": " + t.getMessage());
+                    t.printStackTrace(System.err);
+                } finally {
+                    stopServer();
+                }
+            }, "TcpServerThread");
 
-            } catch (UnsupportedOperationException e) {
-                System.err.println("警告: 当前 Java 版本不支持 Unix 域套接字。忽略 unix_socket_path 参数。");
-                UNIX_SOCKET_PATH = null; // 禁用 Unix 域套接字功能
-            } catch (IOException e) {
-                System.err.println("无法启动 Unix 域套接字服务器: " + e.getMessage());
-                e.printStackTrace(System.err);
-                UNIX_SOCKET_PATH = null; // 禁用 Unix 域套接字功能
-            }
-        } else {
-             System.err.println("警告: 未指定 Unix 域套接字路径，服务器将不会监听任何连接。");
+            mTcpServerThread = 
+            mTcpServerThread.start();
+
+        } catch (IOException e) {
+            System.err.println("无法启动 TCP 服务器: " + e.getMessage());
+            e.printStackTrace(System.err);
         }
     }
 
@@ -323,49 +287,38 @@ public final class CameraServer {
     public void stopServer() {
         System.out.println("正在停止网络服务器...");
 
-        // 关闭所有 Unix 域套接字客户端连接 (Java 16+)
-        for (SocketChannel client : mUnixClients) {
+        // 关闭所有 TCP 客户端连接
+        for (Socket client : mTcpClients) {
             try {
                 client.close();
             } catch (IOException e) {
-                System.err.println("关闭 Unix 域套接字客户端通道错误: " + e.getMessage());
+                System.err.println("关闭 TCP 客户端连接错误: " + e.getMessage());
             }
         }
-        mUnixClients.clear();
-        System.out.println("所有 Unix 域套接字客户端连接已关闭。");
+        mTcpClients.clear();
+        System.out.println("所有 TCP 客户端连接已关闭。");
 
-
-        // 关闭 Unix 域套接字服务器通道 (Java 16+)
-        if (mUnixServerSocketChannel != null && mUnixServerSocketChannel.isOpen()) {
+        // 关闭 TCP 服务器
+        if (mServerSocket != null && !mServerSocket.isClosed()) {
             try {
-                mUnixServerSocketChannel.close();
-                System.out.println("Unix 域套接字服务器通道已关闭。");
-                // 删除套接字文件
-                if (UNIX_SOCKET_PATH != null) {
-                    try {
-                        Files.deleteIfExists(Paths.get(UNIX_SOCKET_PATH));
-                        System.out.println("Unix 域套接字文件已删除: " + UNIX_SOCKET_PATH);
-                    } catch (IOException e) {
-                        System.err.println("删除 Unix 域套接字文件错误: " + e.getMessage());
-                    }
-                }
+                mServerSocket.close();
+                System.out.println("TCP 服务器已关闭。");
             } catch (IOException e) {
-                System.err.println("关闭 Unix 域套接字服务器通道错误: " + e.getMessage());
-                e.printStackTrace(System.err);
+                System.err.println("关闭 TCP 服务器错误: " + e.getMessage());
             } finally {
-                mUnixServerSocketChannel = null;
+                mServerSocket = null;
             }
         }
 
-        // 中断并等待 Unix 服务器线程结束
-        if (mUnixServerThread != null && mUnixServerThread.isAlive()) {
-            mUnixServerThread.interrupt();
+        // 中断并等待服务器线程结束
+        if (mTcpServerThread != null && mTcpServerThread.isAlive()) {
+            mTcpServerThread.interrupt();
             try {
-                mUnixServerThread.join();
+                mTcpServerThread.join();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
-            mUnixServerThread = null;
+            mTcpServerThread = null;
         }
         System.out.println("网络服务器已停止。");
     }
@@ -394,7 +347,7 @@ public final class CameraServer {
             mCameraHandler = new Handler(mCameraThread.getLooper());
             System.out.println("摄像头线程已启动。");
 
-            // 3. 初始化 MediaCodec 编码器
+            // 3. 初始化 MediaCodec 编编码器
             setupMediaCodec();
             System.out.println("MediaCodec 设置完成。");
 
@@ -497,14 +450,10 @@ public final class CameraServer {
 
             @Override
             public void onOutputBufferAvailable(MediaCodec codec, int index, MediaCodec.BufferInfo info) {
-                // 获取编码后的数据
                 ByteBuffer outputBuffer = codec.getOutputBuffer(index);
                 if (outputBuffer != null) {
-                    // 将数据发送给所有连接的客户端
                     sendDataToClients(outputBuffer, info);
                 }
-
-                // 释放输出缓冲区
                 codec.releaseOutputBuffer(index, false);
             }
 
@@ -518,10 +467,8 @@ public final class CameraServer {
             @Override
             public void onOutputFormatChanged(MediaCodec codec, MediaFormat format) {
                 System.out.println("MediaCodec 输出格式已更改: " + format);
-                // TODO: 如果需要，可以在这里处理 SPS/PPS 等配置信息，并发送给客户端
-                // 通常 SPS/PPS 会在第一个 BUFFER_FLAG_CODEC_CONFIG 帧中发送
             }
-        }, mEncoderHandler);
+        }, mEncoderHandler); // <--- 用编码线程的 Handler
 
 
         // 启动 MediaCodec
@@ -786,81 +733,37 @@ public final class CameraServer {
 
     // --- 将编码后的数据发送给所有连接的客户端 ---
     private void sendDataToClients(ByteBuffer buffer, MediaCodec.BufferInfo info) {
-        if (!mIsRecording) {
-            return; // 如果不在录制，不发送数据
+        if (!mIsRecording) return;
+        if (info.size <= 0) return;
+
+        // 避免频繁分配大数组
+        byte[] data = new byte[info.size];
+        synchronized (buffer) {
+            buffer.position(info.offset);
+            buffer.limit(info.offset + info.size);
+            buffer.get(data);
         }
 
-        // 复制数据，因为 ByteBuffer 可能会被 MediaCodec 重用
-        byte[] data = new byte[info.size];
-        buffer.position(info.offset);
-        buffer.limit(info.offset + info.size);
-        buffer.get(data);
-
-        // 发送给 Unix 域套接字客户端 (Java 16+)
-        mUnixClients.forEach(client -> {
+        for (Socket client : mTcpClients) {
             try {
-                // 可以选择在这里添加数据帧头，例如长度信息
-                // 例如：client.write(ByteBuffer.allocate(4).putInt(data.length));
-                client.write(ByteBuffer.wrap(data));
+                OutputStream out = client.getOutputStream();
+                out.write(data);
+                out.flush();
             } catch (IOException e) {
-                System.err.println("发送数据到 Unix 域套接字客户端失败，断开连接: " + e.getMessage());
+                System.err.println("发送数据到 TCP 客户端失败，断开连接: " + e.getMessage());
                 try {
                     client.close();
                 } catch (IOException closeException) {
-                    System.err.println("关闭 Unix 域套接字客户端通道错误: " + closeException.getMessage());
+                    System.err.println("关闭 TCP 客户端连接错误: " + closeException.getMessage());
                 }
-                mUnixClients.remove(client); // 从列表中移除断开的客户端
-                System.out.println("客户端断开连接。当前连接数: " + mUnixClients.size());
-                // 检查是否所有客户端都已断开
-                if (mUnixClients.isEmpty()) {
+                mTcpClients.remove(client);
+                System.out.println("客户端断开连接。当前连接数: " + mTcpClients.size());
+                if (mTcpClients.isEmpty()) {
                     System.out.println("所有客户端已断开连接，停止录制...");
                     stopRecording();
                 }
             }
-        });
+        }
     }
 
-    // --- 处理客户端连接 (此方法不再用于接收视频数据，仅用于示例) ---
-    // private void handleClientConnection(SocketChannel clientChannel) {
-    //     try {
-    //         // 这里可以添加处理客户端连接的代码，例如读取客户端发送的数据
-    //         System.out.println("处理客户端连接: " + clientChannel.getRemoteAddress());
-
-    //         // 示例：向客户端发送一条消息
-    //         String message = "欢迎使用 CameraServer！\n";
-    //         ByteBuffer buffer = ByteBuffer.wrap(message.getBytes());
-    //         while (buffer.hasRemaining()) {
-    //             clientChannel.write(buffer);
-    //         }
-    //         System.out.println("已向客户端发送欢迎消息。");
-
-    //         // 移除视频数据处理循环，数据发送由 MediaCodec 回调处理
-    //         // ByteBuffer videoBuffer = ByteBuffer.allocate(1024 * 1024); // 1MB 缓冲区
-    //         // while (mIsRecording) { ... }
-
-    //         // 保持连接打开，直到客户端断开或服务器停止
-    //         while (clientChannel.isOpen()) {
-    //             // 可以添加一个小的延迟或检查是否有数据需要读取
-    //             try {
-    //                 Thread.sleep(100);
-    //             } catch (InterruptedException e) {
-    //                 Thread.currentThread().interrupt();
-    //                 break;
-    //             }
-    //         }
-
-
-    //         System.out.println("客户端连接处理线程结束。");
-    //     } catch (IOException e) {
-    //         System.err.println("处理客户端连接时发生错误: " + e.getMessage());
-    //         e.printStackTrace(System.err);
-    //     } finally {
-    //         try {
-    //             clientChannel.close();
-    //             System.out.println("客户端连接已关闭: " + clientChannel.getRemoteAddress());
-    //         } catch (IOException e) {
-    //             System.err.println("关闭客户端连接时发生错误: " + e.getMessage());
-    //         }
-    //     }
-    // }
 }
