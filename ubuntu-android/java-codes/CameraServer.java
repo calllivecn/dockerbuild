@@ -112,9 +112,11 @@ public final class CameraServer {
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 System.out.println("检测到 CTRL+C（或其他关闭信号），正在清理资源...");
+                System.out.flush();
                 server.stopRecording(); // 停止录制 (如果正在进行)
                 server.stopServer(); // 停止网络服务器
                 System.out.println("服务器已停止。");
+                System.out.flush();
             }));
 
             System.out.println("主线程保持运行，直到收到中断信号");
@@ -245,21 +247,20 @@ public final class CameraServer {
             mServerSocket = new ServerSocket(TCP_PORT, 50, java.net.InetAddress.getByName(TCP_HOST));
             System.out.println("TCP 服务器已启动，监听 " + TCP_HOST + ":" + TCP_PORT);
 
-            mTcpServerThread = new Thread(() -> {
+            // 主线程直接处理客户端连接
+            while (!Thread.currentThread().isInterrupted()) {
                 try {
-                    while (!Thread.currentThread().isInterrupted()) {
-                        Socket client = mServerSocket.accept();
-                        System.out.println("新的 TCP 客户端连接: " + client.getRemoteSocketAddress());
-                        boolean wasEmpty = mTcpClients.isEmpty();
-                        mTcpClients.add(client);
-                        if (wasEmpty) {
-                            System.out.println("检测到第一个客户端连接，开始录制...");
-                            try {
-                                startRecording();
-                            } catch (Throwable t) {
-                                System.err.println("startRecording() 发生异常: " + t.getClass().getName() + ": " + t.getMessage());
-                                t.printStackTrace(System.err);
-                            }
+                    Socket client = mServerSocket.accept();
+                    System.out.println("新的 TCP 客户端连接: " + client.getRemoteSocketAddress());
+                    boolean wasEmpty = mTcpClients.isEmpty();
+                    mTcpClients.add(client);
+                    if (wasEmpty) {
+                        System.out.println("检测到第一个客户端连接，开始录制...");
+                        try {
+                            startRecording();
+                        } catch (Throwable t) {
+                            System.err.println("startRecording() 发生异常: " + t.getClass().getName() + ": " + t.getMessage());
+                            t.printStackTrace(System.err);
                         }
                     }
                 } catch (IOException e) {
@@ -267,19 +268,15 @@ public final class CameraServer {
                         System.err.println("TCP 服务器接受连接错误: " + e.getMessage());
                     }
                 } catch (Throwable t) {
-                    System.err.println("TcpServerThread 未捕获异常: " + t.getClass().getName() + ": " + t.getMessage());
+                    System.err.println("TcpServer主线程未捕获异常: " + t.getClass().getName() + ": " + t.getMessage());
                     t.printStackTrace(System.err);
-                } finally {
-                    stopServer();
                 }
-            }, "TcpServerThread");
-
-            mTcpServerThread = 
-            mTcpServerThread.start();
-
+            }
         } catch (IOException e) {
             System.err.println("无法启动 TCP 服务器: " + e.getMessage());
             e.printStackTrace(System.err);
+        } finally {
+            stopServer();
         }
     }
 
@@ -421,8 +418,8 @@ public final class CameraServer {
 
         // 尝试选择一个支持Surface输入的编码器
         try {
-            mMediaCodec = MediaCodec.createEncoderByType(MIME_TYPE); // 修正调用
-        } catch (IOException e) {
+            mMediaCodec = MediaCodec.createEncoderByType(MIME_TYPE);
+        } catch (Exception e) {
             System.err.println("错误: 创建 MediaCodec 编码器失败，类型为 " + MIME_TYPE + ": " + e.getMessage());
             e.printStackTrace(System.err);
             throw e;
