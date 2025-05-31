@@ -1,3 +1,5 @@
+// 兼容 Android 9.0 (API 28) 及以上版本
+// 编译建议：minSdkVersion 28, targetSdkVersion 28+
 // 通用安卓环境初始化
 import android.annotation.SuppressLint;
 import android.content.Context;
@@ -19,6 +21,14 @@ public final class InitializeAndroidEnvironment {
      * @throws RuntimeException 如果环境初始化失败。
      */
     public static Context getSystemContext() throws RuntimeException {
+
+        // 检查 Android 版本是否符合要求
+        if (android.os.Build.VERSION.SDK_INT < 28) {
+            System.err.println("错误: 仅支持 Android 9.0 (API 28) 及以上版本。");
+            System.exit(1);
+        }
+
+
         if (sContext != null) {
             System.out.println(TAG + ": 系统上下文已存在，直接返回。");
             return sContext;

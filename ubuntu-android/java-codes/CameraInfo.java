@@ -1,3 +1,6 @@
+// 兼容 Android 9.0 (API 28) 及以上版本
+// 编译建议：minSdkVersion 28, targetSdkVersion 28+
+
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.graphics.ImageFormat;
@@ -182,13 +185,13 @@ public final class CameraInfo {
     private static String getColorFormatName(int format) {
         switch (format) {
             case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible: return "YUV420Flexible (通用YUV420)";
-            case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar: return "YUV420Planar (YV12)";
-            case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar: return "YUV420SemiPlanar (NV12)";
+            // case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar: return "YUV420Planar (YV12)";
+            // case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar: return "YUV420SemiPlanar (NV12)";
             case MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface: return "Surface (GPU纹理)";
-            case MediaCodecInfo.CodecCapabilities.COLOR_Format32bitARGB8888: return "ARGB8888 (32-bit)";
-            case MediaCodecInfo.CodecCapabilities.COLOR_Format24bitRGB888: return "RGB888 (24-bit)";
-            case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420PackedSemiPlanar: return "YUV420PackedSemiPlanar";
-            case MediaCodecInfo.CodecCapabilities.COLOR_Format16bitRGB565: return "RGB565 (16-bit)";
+            // case MediaCodecInfo.CodecCapabilities.COLOR_Format32bitARGB8888: return "ARGB8888 (32-bit)";
+            // case MediaCodecInfo.CodecCapabilities.COLOR_Format24bitRGB888: return "RGB888 (24-bit)";
+            // case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420PackedSemiPlanar: return "YUV420PackedSemiPlanar";
+            // case MediaCodecInfo.CodecCapabilities.COLOR_Format16bitRGB565: return "RGB565 (16-bit)";
             default: return "未知 (0x" + Integer.toHexString(format) + ")";
         }
     }

@@ -26,7 +26,7 @@ shift
 # -source 1.8 -target 1.8 确保兼容性
 # --release 8 是 Java 8 的简写
 #javac --release 8 -classpath "$ANDROID_JAR" CameraVideoRecorder.java InitializeAndroidEnvironment.java -d "$build"
-javac --release 8 -classpath "$ANDROID_JAR" "$@" -d "$build"
+javac --release 8 -Xlint:deprecation -classpath "$ANDROID_JAR" "$@" -d "$build"
 
 # 检查编译是否成功
 if [ $? -ne 0 ]; then
