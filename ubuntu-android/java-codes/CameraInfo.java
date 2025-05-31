@@ -13,12 +13,10 @@ import android.media.MediaCodecList;
 import android.media.MediaFormat;
 import android.util.Range;
 import android.util.Size;
+
 // 导入 InitializeAndroidEnvironment 类，如果它们在同一个包下，则不需要显式导入。
 // 如果 InitializeAndroidEnvironment 在不同的包中，例如 `com.example.utils`，则需要 `import com.example.utils.InitializeAndroidEnvironment;`
 
-import java.util.Arrays;
-import java.util.Map;
-import java.util.TreeMap;
 
 @SuppressLint({"PrivateApi", "BlockedPrivateApi", "SoonBlockedPrivateApi", "DiscouragedPrivateApi", "InternalInsetResource", "DiscouragedApi"})
 public final class CameraInfo {
@@ -107,7 +105,7 @@ public final class CameraInfo {
                 System.out.println("  支持的视频编码器信息:");
                 printEncoderInfo(characteristics);
 
-                // 新增：打印支持的帧率范围
+                // 打印支持的帧率范围
                 android.util.Range<Integer>[] fpsRanges = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
                 if (fpsRanges != null && fpsRanges.length > 0) {
                     System.out.println("  支持的帧率范围 (CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES):");
@@ -185,13 +183,13 @@ public final class CameraInfo {
     private static String getColorFormatName(int format) {
         switch (format) {
             case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible: return "YUV420Flexible (通用YUV420)";
-            // case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar: return "YUV420Planar (YV12)";
-            // case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar: return "YUV420SemiPlanar (NV12)";
+            case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar: return "YUV420Planar (YV12)";
+            case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar: return "YUV420SemiPlanar (NV12)";
             case MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface: return "Surface (GPU纹理)";
-            // case MediaCodecInfo.CodecCapabilities.COLOR_Format32bitARGB8888: return "ARGB8888 (32-bit)";
-            // case MediaCodecInfo.CodecCapabilities.COLOR_Format24bitRGB888: return "RGB888 (24-bit)";
-            // case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420PackedSemiPlanar: return "YUV420PackedSemiPlanar";
-            // case MediaCodecInfo.CodecCapabilities.COLOR_Format16bitRGB565: return "RGB565 (16-bit)";
+            case MediaCodecInfo.CodecCapabilities.COLOR_Format32bitARGB8888: return "ARGB8888 (32-bit)";
+            case MediaCodecInfo.CodecCapabilities.COLOR_Format24bitRGB888: return "RGB888 (24-bit)";
+            case MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420PackedSemiPlanar: return "YUV420PackedSemiPlanar";
+            case MediaCodecInfo.CodecCapabilities.COLOR_Format16bitRGB565: return "RGB565 (16-bit)";
             default: return "未知 (0x" + Integer.toHexString(format) + ")";
         }
     }
