@@ -14,7 +14,8 @@ echo "使用 Android Jar: $ANDROID_JAR"
 
 # 编译 Java 文件，生成 .class 文件
 # -source 1.8 -target 1.8 确保兼容性
-javac -source 1.8 -target 1.8 -classpath "$ANDROID_JAR" CameraVideoRecorder.java
+#javac -source 1.8 -target 1.8 -classpath "$ANDROID_JAR" CameraVideoRecorder.java
+javac --release 8 -classpath "$ANDROID_JAR" CameraVideoRecorder.java
 
 # 检查编译是否成功
 if [ $? -ne 0 ]; then
