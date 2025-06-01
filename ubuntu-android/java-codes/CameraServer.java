@@ -48,7 +48,8 @@ public final class CameraServer {
     private static String MIME_TYPE = MediaFormat.MIMETYPE_VIDEO_AVC; // H.264 AVC，默认编码器
     private static int FRAME_RATE = 30; // 帧率
     private static int I_FRAME_INTERVAL = 1; // I帧间隔 (秒)
-    private static int BIT_RATE = 2000000; // 比特率 (2 Mbps)
+    private static int BIT_RATE_MB = 1000000;
+    private static int BIT_RATE = 2*BIT_RATE_MB; // 比特率 (2 Mbps)
     private static int VIDEO_WIDTH = 1280; // 视频宽度
     private static int VIDEO_HEIGHT = 720; // 视频高度
     private static int ROTATE = 0; // 新增：旋转角度，默认0度
@@ -176,7 +177,7 @@ public final class CameraServer {
                 System.out.println("参数: I_frame_interval = " + I_FRAME_INTERVAL);
             }
             if (argMap.containsKey("bit_rate")) {
-                BIT_RATE = Integer.parseInt(argMap.get("bit_rate")) * 1000000; // 转换为 bps
+                BIT_RATE = Integer.parseInt(argMap.get("bit_rate")) * BIT_RATE_MB; // 转换为 bps
                 System.out.println("参数: bit_rate = " + BIT_RATE);
             }
             if (argMap.containsKey("size")) {
@@ -229,7 +230,7 @@ public final class CameraServer {
         System.out.println("  --help                        : 显示此帮助信息并退出。");
         System.out.println("  frame_rate=<值>             : 设置视频帧率 (例如: 30)。默认值: " + FRAME_RATE);
         System.out.println("  i_frame_interval=<值>       : 设置 I 帧间隔 (秒)。默认值: " + I_FRAME_INTERVAL);
-        System.out.println("  bit_rate=<值>               : 设置视频比特率 (例如: 2)。单位 Mbps。默认值: " + (BIT_RATE / 1000000) + "Mbps");
+        System.out.println("  bit_rate=<值>               : 设置视频比特率 (例如: 2)。单位 Mbps。默认值: " + BIT_RATE + "Mbps");
         System.out.println("  size=<宽度>x<高度>          : 设置视频分辨率 (例如: 1920x1080)。默认值: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT);
         System.out.println("  tcp_addr=<地址>               : 设置 TCP 监听地址。默认值: " + TCP_HOST);
         System.out.println("  tcp_port=<端口号>             : 设置 TCP 监听端口。默认值: " + TCP_PORT);
@@ -237,8 +238,8 @@ public final class CameraServer {
         System.out.println("  codec=<类型>                : 设置视频编码器类型 (例如: avc 或 hevc)。默认值: " + (MIME_TYPE.equals(MediaFormat.MIMETYPE_VIDEO_AVC) ? "avc (H.264)" : "hevc (H.265)"));
         System.out.println("  rotate=<角度>               : 顺时针旋转视频角度 (0, 90, 180, 270)。默认值: " + ROTATE);
         System.out.println("\n示例:");
-        System.out.println("  java -jar CameraServer.jar unix_socket_path=/tmp/camera.sock size=1280x720");
-        System.out.println("  java -jar CameraServer.jar unix_socket_path=/run/camera.sock camera_id=1 codec=hevc");
+        System.out.println("  java -jar CameraServer.jar tcp_addr=" + TCP_HOST + "size=1280x720");
+        System.out.println("  java -jar CameraServer.jar tcp_addr=" + TCP_HOST + "tcp_port=" + TCP_PORT + "camera_id=1 codec=hevc");
     }
 
     // --- 启动网络服务器 ---
@@ -407,7 +408,7 @@ public final class CameraServer {
 
     // --- 设置 MediaCodec 编码器 ---
     private void setupMediaCodec() throws IOException {
-        System.out.println("正在设置 MediaCodec 编码器，分辨率 " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + " @ " + FRAME_RATE + "fps, " + (BIT_RATE / 1000000.0) + "Mbps...");
+        System.out.println("正在设置 MediaCodec 编码器，分辨率 " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + " @ " + FRAME_RATE + "fps, " + BIT_RATE + "Mbps...");
 
         // 释放之前的 MediaCodec 实例（如果存在）
         if (mMediaCodec != null) {
@@ -671,8 +672,7 @@ public final class CameraServer {
             captureRequestBuilder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO); // 修正 CameraMetadata
             captureRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
             captureRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
-            captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE,
-                                    new Range<>(FRAME_RATE, FRAME_RATE)); // 使用导入的 Range
+            captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(FRAME_RATE, FRAME_RATE)); // 使用导入的 Range
             captureRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 0);
 
 
@@ -741,9 +741,26 @@ public final class CameraServer {
             buffer.get(data);
         }
 
+        // 转换 AVCC 格式为 Annex B 格式
+        byte[] annexb = avccToAnnexB(data);
+
+        // 构造包头：type(2字节) + data_len(4字节) + data
+        int type = 1; // 1=视频帧
+        int dataLen = data.length;
+        byte[] header = new byte[6];
+        // type: 2字节网络字节序
+        header[0] = (byte) ((type >> 8) & 0xFF);
+        header[1] = (byte) (type & 0xFF);
+        // data_len: 4字节网络字节序
+        header[2] = (byte) ((dataLen >> 24) & 0xFF);
+        header[3] = (byte) ((dataLen >> 16) & 0xFF);
+        header[4] = (byte) ((dataLen >> 8) & 0xFF);
+        header[5] = (byte) (dataLen & 0xFF);
+
         for (Socket client : mTcpClients) {
             try {
                 OutputStream out = client.getOutputStream();
+                out.write(header);
                 out.write(data);
                 out.flush();
             } catch (IOException e) {
@@ -761,6 +778,24 @@ public final class CameraServer {
                 }
             }
         }
+    }
+
+    // 将 AVCC 格式（长度前缀）转为 Annex B（起始码）
+    private static byte[] avccToAnnexB(byte[] avcc) {
+        ByteBuffer buf = ByteBuffer.wrap(avcc);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        while (buf.remaining() > 4) {
+            int len = buf.getInt();
+            if (buf.remaining() < len) break;
+            out.write(0x00);
+            out.write(0x00);
+            out.write(0x00);
+            out.write(0x01);
+            byte[] nalu = new byte[len];
+            buf.get(nalu);
+            out.write(nalu, 0, len);
+        }
+        return out.toByteArray();
     }
 
 }
