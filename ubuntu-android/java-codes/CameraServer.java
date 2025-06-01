@@ -84,6 +84,8 @@ public final class CameraServer {
 
     private static boolean showHelp = false; // 添加 showHelp 标志
 
+    private byte[] vps = null, sps = null, pps = null;
+
     public static void main(String[] args) {
 
         System.out.println(TAG + " 已启动。");
@@ -461,9 +463,20 @@ public final class CameraServer {
                 stopRecording();
             }
 
+
             @Override
             public void onOutputFormatChanged(MediaCodec codec, MediaFormat format) {
-                System.out.println("MediaCodec 输出格式已更改: " + format);
+                if (format.containsKey("csd-0")) vps = getBytesFromBuffer(format.getByteBuffer("csd-0"));
+                if (format.containsKey("csd-1")) sps = getBytesFromBuffer(format.getByteBuffer("csd-1"));
+                if (format.containsKey("csd-2")) pps = getBytesFromBuffer(format.getByteBuffer("csd-2"));
+                System.out.println("保存参数集: vps=" + (vps != null) + ", sps=" + (sps != null) + ", pps=" + (pps != null));
+            }
+
+            private static byte[] getBytesFromBuffer(ByteBuffer buffer) {
+                byte[] bytes = new byte[buffer.remaining()];
+                buffer.get(bytes);
+                buffer.rewind();
+                return bytes;
             }
         }, mEncoderHandler); // <--- 用编码线程的 Handler
 
@@ -741,16 +754,34 @@ public final class CameraServer {
         }
 
         // 转换 AVCC 格式为 Annex B 格式
-        // 判断是否已是Annex B格式（0x00000001或0x000001开头）
         boolean isAnnexB = (data.length >= 4 && data[0] == 0x00 && data[1] == 0x00 &&
                    ((data[2] == 0x00 && data[3] == 0x01) || data[2] == 0x01));
         byte[] annexb = isAnnexB ? data : avccToAnnexB(data);
 
         // 构造包头：type(2字节) + data_len(4字节) + pts(8字节) + data
         int type = 1; // 1=视频帧
-        int dataLen = data.length;
+        int dataLen = annexb.length;
         byte[] header = new byte[14];
         long pts = info.presentationTimeUs; // 获取时间戳
+
+        if ((info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0) {
+            // 如果是关键帧，设置 type 为 100
+            type = 100;
+        }
+
+        // 拼接 VPS/SPS/PPS 到关键帧前
+        if ((info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0 && vps != null && sps != null && pps != null) {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            try {
+                baos.write(vps);
+                baos.write(sps);
+                baos.write(pps);
+                baos.write(annexb);
+                annexb = baos.toByteArray();
+            } catch (IOException e) {
+                System.err.println("拼接参数集时发生错误: " + e.getMessage());
+            }
+        }
 
         // type: 2字节网络字节序
         header[0] = (byte) ((type >> 8) & 0xFF);
