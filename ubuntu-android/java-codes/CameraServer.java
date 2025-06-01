@@ -28,6 +28,7 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.io.ByteArrayOutputStream;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import java.util.Collections;
@@ -108,16 +109,14 @@ public final class CameraServer {
 
         CameraServer server = new CameraServer();
         try {
-            System.out.println("启动网络服务器 (只启动 Unix Socket)");
+            System.out.println("启动网络服务器 (只启动 TCP Socket)");
             server.startServer();
 
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
                 System.out.println("检测到 CTRL+C（或其他关闭信号），正在清理资源...");
-                System.out.flush();
                 server.stopRecording(); // 停止录制 (如果正在进行)
                 server.stopServer(); // 停止网络服务器
                 System.out.println("服务器已停止。");
-                System.out.flush();
             }));
 
             System.out.println("主线程保持运行，直到收到中断信号");
@@ -742,12 +741,17 @@ public final class CameraServer {
         }
 
         // 转换 AVCC 格式为 Annex B 格式
-        byte[] annexb = avccToAnnexB(data);
+        // 判断是否已是Annex B格式（0x00000001或0x000001开头）
+        boolean isAnnexB = (data.length >= 4 && data[0] == 0x00 && data[1] == 0x00 &&
+                   ((data[2] == 0x00 && data[3] == 0x01) || data[2] == 0x01));
+        byte[] annexb = isAnnexB ? data : avccToAnnexB(data);
 
-        // 构造包头：type(2字节) + data_len(4字节) + data
+        // 构造包头：type(2字节) + data_len(4字节) + pts(8字节) + data
         int type = 1; // 1=视频帧
         int dataLen = data.length;
-        byte[] header = new byte[6];
+        byte[] header = new byte[14];
+        long pts = info.presentationTimeUs; // 获取时间戳
+
         // type: 2字节网络字节序
         header[0] = (byte) ((type >> 8) & 0xFF);
         header[1] = (byte) (type & 0xFF);
@@ -756,12 +760,21 @@ public final class CameraServer {
         header[3] = (byte) ((dataLen >> 16) & 0xFF);
         header[4] = (byte) ((dataLen >> 8) & 0xFF);
         header[5] = (byte) (dataLen & 0xFF);
+        // pts: 8字节网络字节序（高位在前）
+        header[6]  = (byte) ((pts >> 56) & 0xFF);
+        header[7]  = (byte) ((pts >> 48) & 0xFF);
+        header[8]  = (byte) ((pts >> 40) & 0xFF);
+        header[9]  = (byte) ((pts >> 32) & 0xFF);
+        header[10] = (byte) ((pts >> 24) & 0xFF);
+        header[11] = (byte) ((pts >> 16) & 0xFF);
+        header[12] = (byte) ((pts >> 8) & 0xFF);
+        header[13] = (byte) (pts & 0xFF);
 
         for (Socket client : mTcpClients) {
             try {
                 OutputStream out = client.getOutputStream();
                 out.write(header);
-                out.write(data);
+                out.write(annexb);
                 out.flush();
             } catch (IOException e) {
                 System.err.println("发送数据到 TCP 客户端失败，断开连接: " + e.getMessage());
@@ -786,7 +799,12 @@ public final class CameraServer {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         while (buf.remaining() > 4) {
             int len = buf.getInt();
-            if (buf.remaining() < len) break;
+            // 检查长度合法性
+            if (len <= 0 || len > buf.remaining()) {
+                // 非法长度，跳出或跳过
+                System.err.println("警告: AVCC NALU 长度非法: " + len + ", 剩余: " + buf.remaining());
+                break;
+            }
             out.write(0x00);
             out.write(0x00);
             out.write(0x00);
@@ -797,5 +815,4 @@ public final class CameraServer {
         }
         return out.toByteArray();
     }
-
 }
