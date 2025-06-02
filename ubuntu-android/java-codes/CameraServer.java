@@ -740,6 +740,7 @@ public final class CameraServer {
     } // <-- Closing brace for createCameraPreviewSession
 
 
+
     // --- 将编码后的数据发送给所有连接的客户端 ---
     private void sendDataToClients(ByteBuffer buffer, MediaCodec.BufferInfo info) {
         if (!mIsRecording) return;
@@ -758,55 +759,58 @@ public final class CameraServer {
                    ((data[2] == 0x00 && data[3] == 0x01) || data[2] == 0x01));
         byte[] annexb = isAnnexB ? data : avccToAnnexB(data);
 
-        // 构造包头：type(2字节) + data_len(4字节) + pts(8字节) + data
-        int type = 1; // 1=视频帧
-        int dataLen = annexb.length;
-        byte[] header = new byte[14];
         long pts = info.presentationTimeUs; // 获取时间戳
 
-        if ((info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0) {
-            // 如果是关键帧，设置 type 为 100
-            type = 100;
+        // 检查是否是关键帧
+        boolean isKeyFrame = (info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0;
+
+        // 如果是关键帧，先发送参数集 (type=101)
+        if (isKeyFrame) {
+            sendParameterSet(pts);
         }
 
-        // 拼接 VPS/SPS/PPS 到关键帧前
-        if ((info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0 && vps != null && sps != null && pps != null) {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            try {
-                baos.write(vps);
-                baos.write(sps);
-                baos.write(pps);
-                baos.write(annexb);
-                annexb = baos.toByteArray();
-            } catch (IOException e) {
-                System.err.println("拼接参数集时发生错误: " + e.getMessage());
-            }
+        // 构造视频帧包头：type(2字节) + data_len(4字节) + pts(8字节) + data
+        int videoType = isKeyFrame ? 100 : 1; // 100=关键视频帧, 1=普通视频帧
+        int videoDataLen = annexb.length;
+        byte[] videoHeader = new byte[14]; // type(2) + data_len(4) + pts(8)
+
+        // 构造视频帧包头
+        System.arraycopy(intToBytes(videoType, 2), 0, videoHeader, 0, 2);
+        System.arraycopy(intToBytes(videoDataLen, 4), 0, videoHeader, 2, 4);
+        System.arraycopy(longToBytes(pts, 8), 0, videoHeader, 6, 8);
+
+        // 发送视频帧包
+        sendPacketToClients(videoHeader, annexb);
+
+        // System.out.println("发送视频帧 (type=" + videoType + "), size=" + videoDataLen); // 调试输出
+    }
+
+    // --- 将 int 转换为指定长度的网络字节序 (大端) 字节数组 ---
+    private static byte[] intToBytes(int value, int numBytes) {
+        byte[] bytes = new byte[numBytes];
+        for (int i = 0; i < numBytes; i++) {
+            bytes[i] = (byte) ((value >> ((numBytes - 1 - i) * 8)) & 0xFF);
         }
+        return bytes;
+    }
 
-        // type: 2字节网络字节序
-        header[0] = (byte) ((type >> 8) & 0xFF);
-        header[1] = (byte) (type & 0xFF);
-        // data_len: 4字节网络字节序
-        header[2] = (byte) ((dataLen >> 24) & 0xFF);
-        header[3] = (byte) ((dataLen >> 16) & 0xFF);
-        header[4] = (byte) ((dataLen >> 8) & 0xFF);
-        header[5] = (byte) (dataLen & 0xFF);
-        // pts: 8字节网络字节序（高位在前）
-        header[6]  = (byte) ((pts >> 56) & 0xFF);
-        header[7]  = (byte) ((pts >> 48) & 0xFF);
-        header[8]  = (byte) ((pts >> 40) & 0xFF);
-        header[9]  = (byte) ((pts >> 32) & 0xFF);
-        header[10] = (byte) ((pts >> 24) & 0xFF);
-        header[11] = (byte) ((pts >> 16) & 0xFF);
-        header[12] = (byte) ((pts >> 8) & 0xFF);
-        header[13] = (byte) (pts & 0xFF);
+    // --- 将 long 转换为指定长度的网络字节序 (大端) 字节数组 ---
+    private static byte[] longToBytes(long value, int numBytes) {
+        byte[] bytes = new byte[numBytes];
+        for (int i = 0; i < numBytes; i++) {
+            bytes[i] = (byte) ((value >> ((numBytes - 1 - i) * 8)) & 0xFF);
+        }
+        return bytes;
+    }
 
+    // --- 发送数据包 (header + data) 到所有连接的客户端 ---
+    private void sendPacketToClients(byte[] header, byte[] data) {
         for (Socket client : mTcpClients) {
             try {
                 OutputStream out = client.getOutputStream();
                 out.write(header);
-                out.write(annexb);
-                out.flush();
+                out.write(data);
+                out.flush(); // 发送完一个包后立即 flush
             } catch (IOException e) {
                 System.err.println("发送数据到 TCP 客户端失败，断开连接: " + e.getMessage());
                 try {
@@ -820,6 +824,37 @@ public final class CameraServer {
                     System.out.println("所有客户端已断开连接，停止录制...");
                     stopRecording();
                 }
+            }
+        }
+    }
+
+    // --- 发送参数集 (VPS/SPS/PPS) 到客户端 (type=101) ---
+    private void sendParameterSet(long pts) {
+        if (vps != null && sps != null && pps != null) {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            try {
+                baos.write(vps);
+                baos.write(sps);
+                baos.write(pps);
+                byte[] paramData = baos.toByteArray();
+
+                int paramType = 101; // 101 表示参数集 (VPS/SPS/PPS)
+                int paramDataLen = paramData.length;
+                byte[] paramHeader = new byte[14]; // type(2) + data_len(4) + pts(8)
+
+                // 构造参数集包头
+                System.arraycopy(intToBytes(paramType, 2), 0, paramHeader, 0, 2);
+                System.arraycopy(intToBytes(paramDataLen, 4), 0, paramHeader, 2, 4);
+                // 参数集的 PTS 可以使用关键帧的 PTS，或者设置为 0
+                System.arraycopy(longToBytes(pts, 8), 0, paramHeader, 6, 8);
+
+                // 发送参数集包
+                sendPacketToClients(paramHeader, paramData);
+
+                System.out.println("发送参数集 (type=101), size=" + paramDataLen); // 调试输出
+
+            } catch (IOException e) {
+                System.err.println("构造参数集数据时发生错误: " + e.getMessage());
             }
         }
     }

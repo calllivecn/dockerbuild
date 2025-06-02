@@ -1,14 +1,9 @@
 # 使用 Ubuntu 24.04 作为基础镜像
 FROM ubuntu-devel:latest
 
-
-
 # 设置环境变量，方便后续操作
-# ANDROID_SDK_ROOT 是 SDK 的安装位置
-ENV ANDROID_SDK_ROOT /opt/android-sdk
-
-# 设置 Java 环境 (Ubuntu 24.04 通常默认安装 OpenJDK 17)
-ENV JAVA_HOME /usr/lib/jvm/java-17-openjdk-amd64
+# ANDROID_SDK_ROOT 是 SDK 的安装位置 # 设置 Java 环境 (Ubuntu 24.04 通常默认安装 OpenJDK 17)
+ENV ANDROID_SDK_ROOT /opt/android-sdk JAVA_HOME /usr/lib/jvm/java-17-openjdk-amd64
 
 # 将 SDK 工具添加到 PATH 环境变量中
 # 注意这里的 cmdline-tools/latest/bin 是 sdkmanager 的位置
@@ -29,6 +24,7 @@ RUN apt update \
 # 初始化中文环境
 locale-gen en_US.UTF-8
 locale-gen zh_CN.UTF-8
+ENV LANG zh_CN.UTF-8
 
 # 创建 SDK 安装目录
 RUN mkdir -vp $ANDROID_SDK_ROOT/cmdline-tools/latest
@@ -36,8 +32,7 @@ RUN mkdir -vp $ANDROID_SDK_ROOT/cmdline-tools/latest
 # 下载并解压 Android SDK Command-Line Tools
 # 请访问 https://developer.android.com/tools/releases/command-line 查找最新的 Linux 下载链接
 # 这里的 URL 是一个示例，可能需要更新
-ENV https_proxy "http://[fc03::1]:9999"
-ENV http_proxy "http://[fc03::1]:9999"
+ENV https_proxy "http://[fc03::1]:9999" ENV http_proxy "http://[fc03::1]:9999"
 ARG SDK_TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip" # 示例链接，请更新
 
 RUN wget "$SDK_TOOLS_URL" -O /tmp/commandlinetools.zip && \
