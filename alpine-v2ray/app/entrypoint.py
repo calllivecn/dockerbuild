@@ -216,8 +216,8 @@ def testproxy2(url="https://www.google.com/", proxy="http://[::1]:9999") -> bool
 
     with httpx.Client(http2=True, proxy=proxy, timeout=15) as client:
 
-        wait_sleep = 3
-        for i in range(5):
+        wait_sleep = 5
+        for i in range(1, 5+1):
             try:
                 html_text = client.get(url, headers=HEADERS).text
                 result = True
@@ -289,6 +289,7 @@ def decode_subscription(context):
     return proxys
 
 
+@runtime("测试单个链接速度")
 def test_connect(addr: tuple[str, int]) -> int:
 
     t1 = time.time()
