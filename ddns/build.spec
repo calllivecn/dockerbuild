@@ -1,14 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-ddns = "src/ddns.py"
-ddnsclient = "src/ddnsclient.py"
+ddns = 'src/ddns.py'
+ddnsclient = 'src/ddnsclient.py'
 
 a = Analysis(
     [ddns, ddnsclient],
     pathex=[],
     binaries=[],
-    datas=[("getipcmd", ".")],
-    hiddenimports=["pyroute2", "alibabacloud-alidns20150109"],
+    datas=[],
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -16,17 +16,16 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
-
-print(f"{a.scripts=}")
-
 pyz = PYZ(a.pure)
 
-for script in a.scripts:
-	print(f"{script=}")
+#print("==================================")
+#for s in a.scripts:
+#	print(f"{s}")
+#exit(0)
 
 exe1 = EXE(
     pyz,
-    [script for script in a.scripts if script[1] == ddns],
+    [script for script in a.scripts if ddns in script[1]],
     [],
     exclude_binaries=True,
     name='ddns',
@@ -44,7 +43,7 @@ exe1 = EXE(
 
 exe2 = EXE(
     pyz,
-    [script for script in a.scripts if script[1] == ddnsclient],
+    [script for script in a.scripts if ddnsclient in script[1]],
     [],
     exclude_binaries=True,
     name='ddnsclient',

@@ -32,23 +32,6 @@ CONF="""\
 AccessKeyId="xxxxxxxxxxxxxxxxx"
 AccessKeySecret="xxxxxxxxxxxxxxxxx"
 
-[SelfDomainName]
-# 检查间隔时间单位秒
-Interval=180
-
-# 检测server自己所在机器ip, 并更新指向自己的域名
-# 例如域名是：dns.example.com
-# Type 记录类型有, A: ipv4, AAAA: ipv6, TXT: 文本记录
-# RR: dns,  Domain: example.com
-# 如果有多个记录需要更新为同一ip。
-# 格式如下:
-multidns = [
-    {Type="AAAA", RR="dns1", Domain="example.com"},
-    #{Type="AAAA", RR="dns2", Domain="example.com"},
-    #{Type="AAAA", RR="dns3", Domain="example.com"},
-]
-
-
 [Server]
 Address="::"
 Port=2022

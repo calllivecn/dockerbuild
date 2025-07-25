@@ -10,6 +10,8 @@ depend-cache/
 *.cache
 *.conf
 *.toml
+build/
+dist/
 
 */jdk8/
 */jre8/

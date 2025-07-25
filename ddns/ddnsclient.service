@@ -1,10 +1,10 @@
 [Unit]
 Description=IPv6 DDNS 任务 HOME: %h
 
-
 [Service]
-ExecStart=%h/.ddns/ddnsclient.pyz --not-logtime
+ExecStart=%h/.ddns/ddnsclient --not-logtime
 WorkingDirectory=%h/.ddns/
 
 [Install]
 WantedBy=default.target
+

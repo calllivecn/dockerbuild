@@ -26,20 +26,20 @@ logger = logs.getlogger()
 CONF="""\
 [Client]
 # 服务端地址，可以是域名，或者ipv6 ipv4
-Address=
+Address=""
 Port=2022
 
 # 检查间隔时间单位秒
 Interval=180
 
 # 在服务端需要是唯一的
-ClientId=
+ClientId=""
 
 # client 的 secret
-Secret=
+Secret=""
 
 # server 的 secret
-ServerSecret=
+ServerSecret=""
 
 # 等待ACK的超时时间
 TimeOut=10
