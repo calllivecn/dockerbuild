@@ -2,6 +2,8 @@
 # date 2022-03-16 09:28:00
 # author calllivecn <calllivecn@outlook.com>
 
+# 执行不了。bash 不能接收UDP包
+
 # 配合 ddns.pyz 使用的轻客户端
 
 set -e

@@ -17,7 +17,7 @@ from utils import (
     Request,
 )
 from libnetlink import DefaultRouteIP
-import getip4cmd
+import getipcmd
 import logs
 
 logger = logs.getlogger()
@@ -146,14 +146,21 @@ def main():
             # 使用默认方法获取ipv6地址
             try:
                 with DefaultRouteIP() as default_route:
-                    ip = default_route.get_default_ipv6()
+                    ip = default_route.get_iface_ipv6()
             except ValueError as e:
                 logger.error(f"获取默认 IPv6 地址失败: {e}")
                 time.sleep(interval)
                 continue
 
         else:
-            ip = getip4cmd.run(cmd)
+            try:
+                ip = getipcmd.run(cmd)
+            except Exception as e:
+                logger.error(f"执行命令 {cmd} 获取 IP 失败: {e}")
+                logger.error(traceback.format_exc())
+                time.sleep(interval)
+                continue
+
             if ip == "":
                 logger.error("获取IP失败，请检查命令行脚本是否正确。")
                 time.sleep(interval)

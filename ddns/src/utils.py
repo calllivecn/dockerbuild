@@ -22,8 +22,6 @@ except ModuleNotFoundError:
 
 import logs
 
-from typing import Self
-
 
 logger = logging.getLogger(logs.LOGNAME)
 
@@ -142,7 +140,7 @@ class DDNSPacket:
     id: int
     secret: str
     timestamp: int
-    ip: ipaddress._RawIPAddress|None
+    ip: str|None
 
     def __post_init__(self):
         if not isinstance(self.id, int) or not (0 <= self.id < 2**32):
@@ -199,8 +197,9 @@ class Request:
         self.id_byte: bytes
         self.sha_client: bytes
         self.ip: str|None
+        self.ip_bytes: bytes
 
-    def make(self, id_: int, secret: str, ip: ipaddress._RawIPAddress|None) -> bytes:
+    def make(self, id_: int, secret: str, ip: str|None) -> bytes:
         """
         secret: client secret
         """
@@ -211,11 +210,9 @@ class Request:
         self.__buf = dp.id_bytes + sha.digest() + dp.ip_bytes
         return self.__buf
 
-    @classmethod
-    def frombuf(cls, buf) -> Self:
-        self = cls()
+    def frombuf(self, buf: bytes):
         data_len = len(buf)
-        if data_len == 4+32 or data_len == 4+32+4 or data_len == 4+32+16:
+        if data_len not in (4+32, 4+32+4, 4+32+16):
             raise DDNSPacketError("packet invalid")
         
         self.__buf = buf
@@ -223,37 +220,35 @@ class Request:
         self.id_byte = buf[:4]
         self.id_client = struct.unpack("!I", buf[:4])[0]
         self.sha_client = buf[4:36]
-        ip_bytes = buf[36:]
+        self.ip_bytes = buf[36:]
 
-        if ip_bytes:
+        if self.ip_bytes:
             try:
-                self.ip = ipaddress.ip_address(ip_bytes).exploded
-            except Exception:
-                raise DDNSPacketError("IP address length invalid")
+                self.ip = ipaddress.ip_address(self.ip_bytes).exploded
+            except ValueError:
+                raise DDNSPacketError("DDNSPacket IP address length invalid")
         else:
             self.ip = ""
 
-        return self
-
-    def verify(self, secret) -> bool:
+    def verify(self, secret: str) -> bool:
     
         cur = int(time.time())
         for t in range(cur - self.timestamp_range, cur + self.timestamp_range):
-            sha256 = hashlib.sha256(self.id_byte + secret.encode("ascii") + struct.pack("!Q", t))
+            sha256 = hashlib.sha256(self.id_byte + secret.encode("ascii") + struct.pack("!Q", t) + self.ip_bytes)
 
             if self.sha_client == sha256.digest():
                 return True
         
         return False
 
-    def ack(self, secret):
+    def ack(self, secret: str) -> bytes:
         """
         secret: server secret
         """
         sha256 = hashlib.sha256(self.__buf + secret.encode("ascii"))
         return sha256.digest()
 
-    def verifyAck(self, buf, secret):
+    def verifyAck(self, buf: bytes, secret: str) -> bool:
         """
         secret: server secret
         """

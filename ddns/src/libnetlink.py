@@ -10,6 +10,7 @@
 import time
 import socket
 import struct
+import ipaddress
 import threading
 
 from pyroute2 import IPRoute
@@ -202,13 +203,13 @@ class DefaultRouteIP:
         
     
 
-    def get_default_ipv6(self) -> str:
+    def get_iface_ipv6(self) -> str:
         """
-        获取默认 IPv6 路由的出口地址。
+        获取 default_oif 接口 IPv6 路由的出口地址。
         """
         # 获取该接口上所有 IPv6 地址
         addresses = self.ip.get_addr(index=self.default_oif, family=socket.AF_INET6)
-
+        ok = False
         for addr in addresses:
             ipv6 = addr.get_attr("IFA_ADDRESS")
             flags = addr.get("flags", 0)
@@ -221,9 +222,16 @@ class DefaultRouteIP:
                 logger.warning(f"地址 {ipv6} 是 tentative 状态，可能正在进行重复地址检测（DAD）。稍后在试。")
                 continue
 
-            if is_mngtmpaddr or is_permanent:
+            if is_mngtmpaddr:
+                ok = True
                 return ipv6
 
+
+            if is_permanent and not ipaddress.ip_address(ipv6).is_link_local:
+                ok = True
+                return ipv6
+
+        if not ok:
             logger.error("未找到符合条件的 IPv6 地址。")
         
         return ""
@@ -258,7 +266,7 @@ def test2():
     测试获取默认路由的出口 IPv6 地址。
     """
     with DefaultRouteIP() as default_route:
-        ipv6 = default_route.get_default_ipv6()
+        ipv6 = default_route.get_iface_ipv6()
         print(f"默认 IPv6 路由的出口地址是(MANAGETEMPADDR): {ipv6}")
 
 if __name__ == "__main__":

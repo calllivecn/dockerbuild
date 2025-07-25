@@ -191,8 +191,8 @@ class Conf:
         self.server_port = Server["Port"]
         self.server_secret = Server["Secret"]
 
-        self.self_domain_name = self.conf["SelfDomainName"]
-        self.server_interval = self.self_domain_name["Interval"]
+        # self.self_domain_name = self.conf["SelfDomainName"]
+        # self.server_interval = self.self_domain_name["Interval"]
         
     
     def __clientids_cfg(self):
@@ -281,7 +281,7 @@ def update_dns(alidns: AliDDNS, rr, typ, domain, ip):
         return False
 
     else:
-        logger.warning(f"当前能查询到多条记录，可能需要更准确的查询，才能正常工作。")
+        logger.warning("当前能查询到多条记录，可能需要更准确的查询，才能正常工作。")
         return False
 
 
@@ -301,51 +301,58 @@ def server(conf: Conf):
 
     while True:
         data, addr = sock.recvfrom(8192)
-        ip = addr[0]
+        addr_ip = addr[0]
         req = Request()
         try:
             req.frombuf(data)
         except DDNSPacketError as e:
-            logger.warning(f"Error: {e}\n请求验证失败，可能有人在探测: {ip=}")
+            logger.warning(f"Error: {e}\n请求验证失败，可能有人在探测: {addr_ip=}")
             continue
         
-        client_secret = conf.get_multidns_info(req.id_client)["Secret"]
+        try:
+            client_secret = conf.get_multidns_info(req.id_client)["Secret"]
+        except KeyError:
+            logger.warning(f"没有对应的 ClientID: {req.id_client} {addr_ip=}")
+            continue
+
+        # 查看有没有携带ip
+        if req.ip:
+            dns_ip = req.ip
+        else:
+            dns_ip = addr_ip
 
         if client_secret is not None and req.verify(client_secret):
-            logger.debug(f"Cache={conf.client_cache}")
-            c_check = conf.cache_check(req.id_client, ip)
 
-            # 查看有没有携带ip
-            if req.ip:
-                ip = req.ip
+            logger.debug(f"Cache={conf.client_cache}")
+            c_check = conf.cache_check(req.id_client, dns_ip)
 
             if c_check == 0:
 
                 # 回复client ACK
-                logger.debug(f"回复ACK")
+                logger.debug("回复ACK")
                 sock.sendto(req.ack(conf.server_secret), addr)
 
                 domains = conf.get_multidns_info(req.id_client)["multidns"]
                 domain_tmp = ".".join([domains[0]["RR"], domains[0]["Domain"]])
-                logger.debug(f"接收到请求: ClientID={req.id_client} domain={domain_tmp} {ip=}")
+                logger.debug(f"接收到请求: ClientID={req.id_client} domain={domain_tmp} {addr_ip=}")
 
                 # 使用线程更新
-                th = Thread(target=multi_update_dns, args=(alidns, domains, ip), daemon=True)
+                th = Thread(target=multi_update_dns, args=(alidns, domains, dns_ip), daemon=True)
                 th.start()
 
             elif c_check == 1:
-                logger.warning(f"没有对应的: ClientID={req.id_client} {ip=}")
+                logger.warning(f"没有对应的: ClientID={req.id_client} {addr_ip=}")
 
             elif c_check == 2:
                 sock.sendto(req.ack(conf.server_secret), addr)
-                logger.debug(f"请求太频繁(间隔小小于30秒): ClientID={req.id_client} {ip=}")
+                logger.debug(f"请求太频繁(间隔小小于30秒): ClientID={req.id_client} {addr_ip=}")
 
             elif c_check == 3:
                 sock.sendto(req.ack(conf.server_secret), addr)
-                logger.debug(f"当前ip没有改变: ClientID={req.id_client} {ip=}")
+                logger.debug(f"当前ip没有改变: ClientID={req.id_client} {addr_ip=}")
 
         else:
-            logger.warning(f"请求验证失败，可能有人在探测: {ip=}")
+            logger.warning(f"请求验证失败，可能有人在探测: {addr_ip=}")
 
 
 
@@ -377,7 +384,7 @@ def main():
     th_server = Thread(target=server, args=(conf,), daemon=True, name="Server")
     th_server.start()
 
-    logger.debug(f"服务端启动完成...")
+    logger.debug("服务端启动完成...")
 
     try:
         th_server.join()
