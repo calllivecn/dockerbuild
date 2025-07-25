@@ -210,12 +210,46 @@ class Conf:
             return 0
         else:
             return 3
+
+
+# 封装成一个类试试
+class IPv6UDPServer:
+
+    def __init__(self, host, port):
+        self.host = host
+        self.port = port
+        self.sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+        self.sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_RECVPKTINFO, 1)  # 开启 IPV6_PKTINFO 选项
+        self.sock.bind((self.host, self.port))
     
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.sock.close()
+
+    def recv(self, buffer_size=8192) -> tuple[bytes, tuple]:
+        data, ancdata, msg_flags, addr = self.sock.recvmsg(buffer_size, 1024)
+        # 解析控制消息以获取目标地址信息
+        for cmsg_level, cmsg_type, cmsg_data in ancdata:
+            if cmsg_level == socket.IPPROTO_IPV6 and cmsg_type == socket.IPV6_PKTINFO:
+                self.cmsg_level = cmsg_level
+                self.cmsg_type = cmsg_type
+                self.pktinfo = cmsg_data
+                # self.server_recv_addr = socket.inet_ntop(socket.AF_INET6, cmsg_data[:16])
+                # self.if_index = struct.unpack("=I", cmsg_data[16:20])[0]  # 如果需要接口索引
+                return data, addr
+        
+        # 如果没有控制消息，直接返回数据和地址
+        return data, addr 
+    
+    def send(self, data: bytes, addr: tuple) -> int:
+        return self.sock.sendmsg([data], [(self.cmsg_level, self.cmsg_type, self.pktinfo)], 0, addr)
 
 
 def update_dns(alidns: AliDDNS, rr, typ, domain, ip):
     """
-    return: False or dns_record_id 
+    return: False or dns_record_id
     """
 
     dns = ".".join([rr, domain])
@@ -279,63 +313,63 @@ def server(conf: Conf):
 
     alidns = AliDDNS(conf.ali_keyid, conf.ali_keysecret)
 
-    sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
-    sock.bind((conf.server_addr, conf.server_port))
+    with IPv6UDPServer(conf.server_addr, conf.server_port) as sock:
 
-    while True:
-        data, addr = sock.recvfrom(8192)
-        addr_ip = addr[0]
-        req = Request()
-        try:
-            req.frombuf(data)
-        except DDNSPacketError as e:
-            logger.warning(f"Error: {e}\n请求验证失败，可能有人在探测: {addr_ip=}")
-            continue
-        
-        try:
-            client_secret = conf.get_multidns_info(req.id_client)["Secret"]
-        except KeyError:
-            logger.warning(f"没有对应的 ClientID: {req.id_client} {addr_ip=}")
-            continue
+        while True:
+            data, addr = sock.recv(8192)
+            addr_ip = addr[0]
+            logger.debug(f"收到来自 {addr_ip} 的数据: {data.decode()}")
+            req = Request()
+            try:
+                req.frombuf(data)
+            except DDNSPacketError as e:
+                logger.warning(f"Error: {e}\n请求验证失败，可能有人在探测: {addr_ip=}")
+                continue
+            
+            try:
+                client_secret = conf.get_multidns_info(req.id_client)["Secret"]
+            except KeyError:
+                logger.warning(f"没有对应的 ClientID: {req.id_client} {addr_ip=}")
+                continue
 
-        # 查看有没有携带ip
-        if req.ip:
-            dns_ip = req.ip
-        else:
-            dns_ip = addr_ip
+            # 查看有没有携带ip
+            if req.ip:
+                dns_ip = req.ip
+            else:
+                dns_ip = addr_ip
 
-        if client_secret is not None and req.verify(client_secret):
+            if client_secret is not None and req.verify(client_secret):
 
-            logger.debug(f"Cache={conf.client_cache}")
-            c_check = conf.cache_check(req.id_client, dns_ip)
+                logger.debug(f"Cache={conf.client_cache}")
+                c_check = conf.cache_check(req.id_client, dns_ip)
 
-            if c_check == 0:
+                if c_check == 0:
 
-                # 回复client ACK
-                logger.debug("回复ACK")
-                sock.sendto(req.ack(conf.server_secret), addr)
+                    # 回复client ACK
+                    logger.debug("回复ACK")
+                    sock.send(req.ack(conf.server_secret), addr)
 
-                domains = conf.get_multidns_info(req.id_client)["multidns"]
-                domain_tmp = ".".join([domains[0]["RR"], domains[0]["Domain"]])
-                logger.debug(f"接收到请求: ClientID={req.id_client} domain={domain_tmp} {addr_ip=}")
+                    domains = conf.get_multidns_info(req.id_client)["multidns"]
+                    domain_tmp = ".".join([domains[0]["RR"], domains[0]["Domain"]])
+                    logger.debug(f"接收到请求: ClientID={req.id_client} domain={domain_tmp} {addr_ip=}")
 
-                # 使用线程更新
-                th = Thread(target=multi_update_dns, args=(alidns, domains, dns_ip), daemon=True)
-                th.start()
+                    # 使用线程更新
+                    th = Thread(target=multi_update_dns, args=(alidns, domains, dns_ip), daemon=True)
+                    th.start()
 
-            elif c_check == 1:
-                logger.warning(f"没有对应的: ClientID={req.id_client} {addr_ip=}")
+                elif c_check == 1:
+                    logger.warning(f"没有对应的: ClientID={req.id_client} {addr_ip=}")
 
-            elif c_check == 2:
-                sock.sendto(req.ack(conf.server_secret), addr)
-                logger.debug(f"请求太频繁(间隔小小于30秒): ClientID={req.id_client} {addr_ip=}")
+                elif c_check == 2:
+                    sock.send(req.ack(conf.server_secret), addr)
+                    logger.debug(f"请求太频繁(间隔小小于30秒): ClientID={req.id_client} {addr_ip=}")
 
-            elif c_check == 3:
-                sock.sendto(req.ack(conf.server_secret), addr)
-                logger.debug(f"当前ip没有改变: ClientID={req.id_client} {addr_ip=}")
+                elif c_check == 3:
+                    sock.send(req.ack(conf.server_secret), addr)
+                    logger.debug(f"当前ip没有改变: ClientID={req.id_client} {addr_ip=}")
 
-        else:
-            logger.warning(f"请求验证失败，可能有人在探测: {addr_ip=}")
+            else:
+                logger.warning(f"请求验证失败，可能有人在探测: {addr_ip=}")
 
 
 
