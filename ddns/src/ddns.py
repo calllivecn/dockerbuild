@@ -249,7 +249,7 @@ class IPv6UDPServer:
 
 def update_dns(alidns: AliDDNS, rr, typ, domain, ip):
     """
-    return: False or dns_record_id
+    return: False or dns_record_id 
     """
 
     dns = ".".join([rr, domain])
@@ -318,7 +318,7 @@ def server(conf: Conf):
         while True:
             data, addr = sock.recv(8192)
             addr_ip = addr[0]
-            logger.debug(f"收到来自 {addr_ip} 的数据: {data.decode()}")
+            logger.debug(f"收到来自 {addr_ip} 的数据: {data}")
             req = Request()
             try:
                 req.frombuf(data)
