@@ -12,6 +12,10 @@ import socket
 import struct
 import threading
 
+from pyroute2 import IPRoute
+
+from logs import logger
+
 __all__  = (
     "NetLink",
 )
@@ -132,8 +136,7 @@ class NetLink:
         with self._updated:
             self._updated.acquire()
         
-        return 
-    
+        return
 
     def close(self):
         self.sockfd.close()
@@ -151,6 +154,89 @@ def get_self_ipv6():
     return addr
 
 
+class DefaultRouteIP:
+    """
+    获取默认路由的出口ip地址。
+    """
+
+    IFA_F_TENTATIVE     = 0x40
+    IFA_F_PERMANENT     = 0x80
+    IFA_F_MANAGETEMPADDR= 0x100
+
+    def __init__(self, default_oif: str|None=None):
+
+        self.ip = IPRoute()
+
+        self.default_oif = default_oif
+
+    def __enter__(self):
+        """
+        进入上下文管理器时，返回默认 IPv6 地址。
+        """
+
+        if self.default_oif is None:
+
+            # 获取默认 IPv6 路由的出口接口 index
+            default_routes = self.ip.get_default_routes(family=socket.AF_INET6)
+
+            for route in default_routes:
+                for attr in route.get("attrs", []):
+                    if attr[0] == "RTA_OIF":
+                        self.default_oif = attr[1]
+                        break
+                if self.default_oif:
+                    return self
+
+            if self.default_oif is None:
+                raise ValueError("未找到默认 IPv6 路由的出口接口。")
+
+        else:
+            # 验证给定的接口是否存在
+            if self.ip.get_links(self.default_oif):
+                logger.debug(f"使用指定的接口 {self.default_oif}。")
+                return self
+            else:
+                ValueError(f"接口 {self.default_oif} 不存在。")
+        
+        return self
+        
+    
+
+    def get_default_ipv6(self) -> str:
+        """
+        获取默认 IPv6 路由的出口地址。
+        """
+        # 获取该接口上所有 IPv6 地址
+        addresses = self.ip.get_addr(index=self.default_oif, family=socket.AF_INET6)
+
+        for addr in addresses:
+            ipv6 = addr.get_attr("IFA_ADDRESS")
+            flags = addr.get("flags", 0)
+
+            is_mngtmpaddr = bool(flags & self.IFA_F_MANAGETEMPADDR)
+            is_tentative = bool(flags & self.IFA_F_TENTATIVE)
+            is_permanent = bool(flags & self.IFA_F_PERMANENT)
+
+            if is_tentative:
+                logger.warning(f"地址 {ipv6} 是 tentative 状态，可能正在进行重复地址检测（DAD）。稍后在试。")
+                continue
+
+            if is_mngtmpaddr or is_permanent:
+                return ipv6
+
+            logger.error("未找到符合条件的 IPv6 地址。")
+        
+        return ""
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """
+        退出上下文管理器时，关闭 IPRoute。
+        """
+        self.ip.close()
+        if exc_type is not None:
+            logger.error(f"发生异常: {exc_value}")
+
+
 def test():
     netlink = NetLink()
 
@@ -165,9 +251,18 @@ def test():
             break
 
         print(time.localtime(), "有新地址！这是访问外网的默认地址:", ipv6)
-    
+
+
+def test2():
+    """
+    测试获取默认路由的出口 IPv6 地址。
+    """
+    with DefaultRouteIP() as default_route:
+        ipv6 = default_route.get_default_ipv6()
+        print(f"默认 IPv6 路由的出口地址是(MANAGETEMPADDR): {ipv6}")
 
 if __name__ == "__main__":
     # 这样的吗？
-    test()
+    # test()
+    test2()
 

@@ -1,4 +1,7 @@
 
+import sys
+import logging
+
 __all__ =(
     "getlogger",
     "logger",
@@ -7,10 +10,6 @@ __all__ =(
 )
 
 LOGNAME="ddns"
-
-
-import sys
-import logging
 
 
 stdoutHandler = logging.StreamHandler(stream=sys.stdout)

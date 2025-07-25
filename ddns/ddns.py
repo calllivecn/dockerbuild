@@ -7,32 +7,24 @@ import sys
 import time
 import json
 import socket
+import pprint
 import logging
 import argparse
-import traceback
 from threading import Thread
-
-import pprint
 
 from typing import Any
 
 from aliyunlib import AliDDNS
-
 from utils import (
     PWD,
     CFG,
     NAME,
     Request,
     readcfg2,
-    get_self_ipv6,
     DDNSPacketError,
 )
-
-from libnetlink import NetLink
-
 import logs
-
-logger = logs.getlogger()
+from logs import logger
 
 CONF="""\
 [Ali]
@@ -293,89 +285,10 @@ def update_dns(alidns: AliDDNS, rr, typ, domain, ip):
         return False
 
 
-
 def multi_update_dns(alidns: AliDDNS, multidns: list, ip: str):
     for info in multidns:
         update_dns(alidns, info["RR"], info["Type"], info["Domain"], ip)
 
-
-def self_ddns(alidns: AliDDNS, conf: Conf):
-
-    multidns = conf.self_domain_name["multidns"]
-
-    # 多个域名都是指向同一个ip的，只需要拿第一个对比就行
-    dns = ".".join([multidns[0]["RR"], multidns[0]["Domain"]])
-    
-    ipv6 = get_self_ipv6()
-    logger.info(f"获取本机ipv6地址：{ipv6}")
-
-    ip_cache = ip_dnsid_cache.get(dns)
-    
-    if ipv6 == ip_cache:
-        logger.debug("与缓存相同，不用更新.")
-    else:
-        multi_update_dns(alidns, multidns, ipv6)
-
-
-def server_self_ddns(conf: Conf):
-
-    interval = conf.server_interval
-
-    alidns = AliDDNS(conf.ali_keyid, conf.ali_keysecret)
-
-    while True:
-        try:
-            self_ddns(alidns, conf)
-        except Exception:
-            logger.warning(f"异常:")
-            traceback.print_exc()
-
-        logger.debug(f"sleep({interval}) ...")
-        time.sleep(interval)
-
-
-
-# 使用新的检测IP变化的方式，是阻塞式的。
-def server_self_ddns_v2(conf: Conf):
-
-    alidns = AliDDNS(conf.ali_keyid, conf.ali_keysecret)
-    netlink = NetLink()
-
-    multidns = conf.self_domain_name["multidns"]
-
-    # 多个域名都是指向同一个ip的，只需要拿第一个对比就行
-    dns = ".".join([multidns[0]["RR"], multidns[0]["Domain"]])
-    
-    while True:
-
-        while True:
-            try:
-                ipv6 = get_self_ipv6()
-            except OSError:
-                time.sleep(1)
-                continue
-            
-            break
-
-        logger.debug(f"获取本机ipv6地址：{ipv6}")
-
-        ip_cache = ip_dnsid_cache.get(dns)
-
-        if ipv6 == ip_cache:
-            logger.debug("与缓存相同，不用更新.")
-        else:
-            try:
-                multi_update_dns(alidns, multidns, ipv6)
-            except Exception:
-                logger.warning(f"异常:")
-                traceback.print_exc()
-                time.sleep(1)
-
-        # 阻塞式，等待系统IP地址更新。
-        netlink.monitor()
-
-
-    netlink.close()
 
 def server(conf: Conf):
 
@@ -401,6 +314,10 @@ def server(conf: Conf):
         if client_secret is not None and req.verify(client_secret):
             logger.debug(f"Cache={conf.client_cache}")
             c_check = conf.cache_check(req.id_client, ip)
+
+            # 查看有没有携带ip
+            if req.ip:
+                ip = req.ip
 
             if c_check == 0:
 
@@ -457,17 +374,12 @@ def main():
 
     conf = Conf()
 
-    # th_server_self_ddns = Thread(target=server_self_ddns, args=(conf,), daemon=True, name="Server Self DDNS")
-    th_server_self_ddns = Thread(target=server_self_ddns_v2, args=(conf,), daemon=True, name="Server Self DDNS")
-    th_server_self_ddns.start()
-
     th_server = Thread(target=server, args=(conf,), daemon=True, name="Server")
     th_server.start()
 
     logger.debug(f"服务端启动完成...")
 
     try:
-        th_server_self_ddns.join()
         th_server.join()
     except Exception as e:
         raise e

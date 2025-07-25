@@ -16,7 +16,8 @@ from utils import (
     readcfg2,
     Request,
 )
-
+from libnetlink import DefaultRouteIP
+import getip4cmd
 import logs
 
 logger = logs.getlogger()
@@ -45,17 +46,22 @@ TimeOut=10
 
 # 没有收到ACK时，重试次数
 Retry=3
+
+# 获取IP的命令行脚本
+# 例如：/usr/local/bin/getip6.sh
+# 如果不设置, 则使用默认内部方法,拿到默认路由接口的ip, 只支持ipv6。
+# Cmd=""
 """
 
 
-def makesock(addr, port=2022):
-    # 自动检测是ipv4 ipv6
+def makesock(host: str, port: int=2022):
+    # 自动检测服务端地址是ipv4 ipv6
     sock = None
-    for res in socket.getaddrinfo(addr, port, socket.AF_UNSPEC, socket.SOCK_DGRAM, 0, socket.AI_PASSIVE):
+    for res in socket.getaddrinfo(host, port, socket.AF_UNSPEC, socket.SOCK_DGRAM, 0, socket.AI_PASSIVE):
         af, socktype, proto, canonname, sa = res
         try:
             sock = socket.socket(af, socktype, proto)
-        except OSError as msg:
+        except OSError:
             sock = None
             continue
         break
@@ -67,29 +73,28 @@ def makesock(addr, port=2022):
     return sock
 
 
-def client(addr, port, id, secret, server_secret, retry, timeout):
+def client(host, port, id, secret, server_secret, retry, timeout, ip: str|None=None):
     req = Request()
-    buf = req.make(id, secret)
+    buf = req.make(id, secret, ip)
 
-    sock = makesock(addr, port)
+    sock = makesock(host, port)
     sock.settimeout(timeout)
 
     for i in range(1, retry+1):
         logger.info(f"retry {i}/{retry}")
-        sock.sendto(buf, (addr, port))
+        sock.sendto(buf, (host, port))
         try:
-            data_ack, c_addr = sock.recvfrom(512)
+            data_ack, c_addr = sock.recvfrom(4096)
         except TimeoutError:
             continue
         
         if req.verifyAck(data_ack, server_secret):
-            logger.info(f"Server: {addr} Addr: {c_addr[0]}  verify ACK ok")
+            logger.info(f"Server: {host} Addr: {c_addr[0]}  verify ACK ok")
             break
         else:
             logger.warning(f"{c_addr[0]}: 收到的回复验证不通过！可能正在被探测。")
     
     sock.close()
-
 
 
 def main():
@@ -132,13 +137,32 @@ def main():
 
     timeout = c["TimeOut"]
     retry = c["Retry"]
-    
+
+    cmd = c.get("Cmd")
 
     while True:
+
+        if cmd is None:
+            # 使用默认方法获取ipv6地址
+            try:
+                with DefaultRouteIP() as default_route:
+                    ip = default_route.get_default_ipv6()
+            except ValueError as e:
+                logger.error(f"获取默认 IPv6 地址失败: {e}")
+                time.sleep(interval)
+                continue
+
+        else:
+            ip = getip4cmd.run(cmd)
+            if ip == "":
+                logger.error("获取IP失败，请检查命令行脚本是否正确。")
+                time.sleep(interval)
+                continue
+
         try:
-            client(addr, port, clientid, secret, server_secret, retry, timeout)
+            client(addr, port, clientid, secret, server_secret, retry, timeout, ip)
         except Exception:
-            logger.warning(f"有异常：")
+            logger.warning("有异常：")
             traceback.print_exc()
 
         logger.debug(f"sleep({interval}) ...")
