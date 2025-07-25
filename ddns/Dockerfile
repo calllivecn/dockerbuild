@@ -7,5 +7,5 @@ RUN pip install --break-system-packages -r /requirements.txt || pip install -r /
 
 CMD ["python", "/src/ddns.py"]
 
-EXPOSE 2022
+EXPOSE 2022/udp
 
