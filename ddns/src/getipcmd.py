@@ -21,7 +21,7 @@ def run(cmd: str) -> str:
     t = cmd.split()
     cmd_ = [cmd_dir / t[0]] + t[1:]
     print(f"执行命令: {cmd_=}")
-    result = subprocess.run(cmd_, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = subprocess.run(cmd_, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=15.0)
     ip_address = result.stdout.decode('utf-8').strip()
     return ip_address
 
