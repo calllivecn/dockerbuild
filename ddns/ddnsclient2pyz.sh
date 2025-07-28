@@ -32,3 +32,4 @@ trap clean SIGINT SIGTERM EXIT ERR
 rm -rf "${TMP1}/__pycache__/"
 
 python3 -m zipapp --python '/usr/bin/env python3' --main ddnsclient:main --compress --output ddnsclient.pyz "${TMP1}" 
+

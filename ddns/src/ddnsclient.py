@@ -73,7 +73,10 @@ def makesock(host: str, port: int=2022):
     return sock
 
 
-def client(host, port, id, secret, server_secret, retry, timeout, ip: str|None=None):
+def client(host: str, port: int, id: int, secret: str, server_secret: str, retry: int, timeout: int, ip: str):
+    """
+    当ip为""空字符串时。请求包里就不带上ip。让系统自动选择。
+    """
     req = Request()
     buf = req.make(id, secret, ip)
 
@@ -152,6 +155,7 @@ def main():
                 time.sleep(interval)
                 continue
 
+
         else:
             try:
                 ip = getipcmd.run(cmd)
@@ -161,10 +165,10 @@ def main():
                 time.sleep(interval)
                 continue
 
-            if ip == "":
-                logger.error("获取IP失败，请检查命令行脚本是否正确。")
-                time.sleep(interval)
-                continue
+        if ip == "":
+            logger.error("获取IP为空，请检查命令行脚本是否正确。")
+            # 当ip为""空字符串时。请求包里就不带上ip。让系统自动选择。
+            logger.info("使用最后的 UDP connect 方法, 需要当前机器上有可使用的ipv6地址。")
 
         try:
             client(addr, port, clientid, secret, server_secret, retry, timeout, ip)

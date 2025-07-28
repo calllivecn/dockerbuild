@@ -140,7 +140,7 @@ class DDNSPacket:
     id: int
     secret: str
     timestamp: int
-    ip: str|None
+    ip: str = ""
 
     def __post_init__(self):
         if not isinstance(self.id, int) or not (0 <= self.id < 2**32):
@@ -149,7 +149,7 @@ class DDNSPacket:
         if not isinstance(self.secret, str) or len(self.secret) == 0:
             raise ValueError("secret must be a non-empty string.")
 
-        if self.ip is not None:
+        if self.ip != "":
             if not isinstance(self.ip, str) or not self.is_valid_ip(self.ip):
                 raise ValueError("ip must be a valid IPv4 or IPv6 address.")
 
@@ -169,7 +169,7 @@ class DDNSPacket:
         secret_bytes = self.secret.encode("ascii")
         timestamp_bytes = struct.pack("!Q", self.timestamp)
 
-        if self.ip is None:
+        if self.ip == "":
             self.ip_bytes = b""
         else:
             self.ip_bytes = ipaddress.ip_address(self.ip).packed
@@ -199,7 +199,7 @@ class Request:
         self.ip: str|None
         self.ip_bytes: bytes
 
-    def make(self, id_: int, secret: str, ip: str|None) -> bytes:
+    def make(self, id_: int, secret: str, ip: str) -> bytes:
         """
         secret: client secret
         """
