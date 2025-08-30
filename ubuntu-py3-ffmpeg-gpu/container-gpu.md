@@ -52,15 +52,16 @@ rpm -ql kmod-nvidia | grep '\.so'
 示例（假设 CUDA 12.1，对应 PyTorch 2.3.1）：
 
 ```bash
+  #--security-opt=label=disable \  # 关 SELinux 限制
 podman run -it --rm \
-  --security-opt=label=disable \  # 关 SELinux 限制
   --device /dev/nvidia0 \
   --device /dev/nvidiactl \
   --device /dev/nvidia-uvm \
   --device /dev/nvidia-uvm-tools \
-  -v /usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:ro \
-  -v /usr/lib64:/usr/lib64:ro \
-  pytorch/pytorch:2.3.1-cuda12.1-cudnn8-runtime bash
+  -v /usr/lib/x86_64-linux-gnu/libcuda.so:/usr/lib/x86_64-linux-gnu/libcuda.so:ro \
+  -v /usr/lib/x86_64-linux-gnu/libcuda.so.1:/usr/lib/x86_64-linux-gnu/libcuda.so.1:ro \
+  -v /usr/lib/x86_64-linux-gnu/libcuda.so.575.64.03:/usr/lib/x86_64-linux-gnu/libcuda.so.575.64.03:ro \
+  localhost/ubuntu-py3-ffmpeg-gpu:latest
 ```
 
 进入容器后测试：
