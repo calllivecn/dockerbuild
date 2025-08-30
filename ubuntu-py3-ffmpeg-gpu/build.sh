@@ -4,8 +4,10 @@
 
 . ../libbuild-depends.sh
 
+export TMPDIR=$HOME/.local/share/containers/tmp/ 
+
 if [ -n $NO_CACHE ];then
-	TMPDIR=$HOME/.local/share/containers/tmp/ podman build --no-cache -t ${IMAGE_NAME} .
+	podman build --no-cache -t ${IMAGE_NAME} .
 else
-	TMPDIR=$HOME/.local/share/containers/tmp/ podman build -t ${IMAGE_NAME} .
+	podman build -t ${IMAGE_NAME} .
 fi
