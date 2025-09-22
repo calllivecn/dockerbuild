@@ -13,6 +13,7 @@ bash build.sh
   #-v /usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:ro \
   #-v /usr/lib/x86_64-linux-gnu:/host-driver-libs:ro \
   #-e LD_LIBRARY_PATH=/host-driver-libs \
+
 podman run -it --rm \
   --device /dev/nvidia0 \
   --device /dev/nvidiactl \
@@ -20,6 +21,5 @@ podman run -it --rm \
   --device /dev/nvidia-uvm-tools \
   -v /usr/lib/x86_64-linux-gnu/libcuda.so:/usr/lib/x86_64-linux-gnu/libcuda.so:ro \
   -v /usr/lib/x86_64-linux-gnu/libcuda.so.1:/usr/lib/x86_64-linux-gnu/libcuda.so.1:ro \
-  -v /usr/lib/x86_64-linux-gnu/libcuda.so.575.64.03:/usr/lib/x86_64-linux-gnu/libcuda.so.575.64.03:ro \
   localhost/ubuntu-py3-ffmpeg-gpu:latest bash
 ```
