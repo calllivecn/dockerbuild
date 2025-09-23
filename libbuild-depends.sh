@@ -12,6 +12,9 @@ BASE_DIR=$(dirname ${CD_DIR})
 
 IMAGE_NAME=${CD_DIR##*/}
 
+# podman build 时使用的目录：
+export TMPDIR=$HOME/.local/share/containers/tmp/
+
 
 get_depend(){
 	local DF="$CD_DIR/Dockerfile"
