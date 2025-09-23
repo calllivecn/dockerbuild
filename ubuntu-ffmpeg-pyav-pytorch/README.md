@@ -21,5 +21,5 @@ podman run -it --rm \
   --device /dev/nvidia-uvm-tools \
   -v /usr/lib/x86_64-linux-gnu/libcuda.so:/usr/lib/x86_64-linux-gnu/libcuda.so:ro \
   -v /usr/lib/x86_64-linux-gnu/libcuda.so.1:/usr/lib/x86_64-linux-gnu/libcuda.so.1:ro \
-  localhost/ubuntu-py3-ffmpeg-gpu:latest bash
+  localhost/ubuntu-ffmpeg-pyav-pytorch:latest bash
 ```
