@@ -338,6 +338,7 @@ def server(conf: Conf):
             else:
                 dns_ip = addr_ip
 
+
             if client_secret is not None and req.verify(client_secret):
 
                 logger.debug(f"Cache={conf.client_cache}")
@@ -372,8 +373,6 @@ def server(conf: Conf):
                 logger.warning(f"请求验证失败，可能有人在探测: {addr_ip=}")
 
 
-
-
 def main():
     parse = argparse.ArgumentParser(
         usage="%(prog)s",
@@ -398,15 +397,16 @@ def main():
 
     conf = Conf()
 
-    th_server = Thread(target=server, args=(conf,), daemon=True, name="Server")
-    th_server.start()
-
-    logger.debug("服务端启动完成...")
-
-    try:
-        th_server.join()
-    except Exception as e:
-        raise e
+    # 有时刚好在网络变化时，回复时可以能会有问题
+    while True:
+        th_server = Thread(target=server, args=(conf,), daemon=True, name="Server")
+        th_server.start()
+        logger.debug("服务端启动完成...")
+        try:
+            th_server.join()
+        except Exception as e:
+            logging.error(f"服务端异常(5秒后重启)：{e}")
+            time.sleep(5)
 
 if __name__ == '__main__':
     main()
