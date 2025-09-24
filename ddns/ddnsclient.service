@@ -3,6 +3,8 @@ Description=IPv6 DDNS 任务 HOME: %h
 
 [Service]
 ExecStart=%h/.ddns/ddnsclient --not-logtime
+Restart=on-failure
+RestartSec=1m
 WorkingDirectory=%h/.ddns/
 
 [Install]
