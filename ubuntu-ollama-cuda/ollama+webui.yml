@@ -2,7 +2,7 @@ version: "3"
 
 services:
   ollama:
-    image: localhost/ollama-qwen3-7-14:latest
+    image: localhost/ubuntu-ollama-cuda:latest
     container_name: ollama
     #ports:
     #  - 11434:11434
@@ -34,11 +34,11 @@ services:
 
   openwebui:
     image: ghcr.io/open-webui/open-webui:main
-    container_name: openwebui
+    container_name: open-webui
     ports:
       - "8080:8080"
     volumes:
-      - ${HOME}/.volumes/ollama-webui:/api/backend/data
+      - ${HOME}/.volumes/open-webui:/app/backend/data
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
     networks:
