@@ -11,6 +11,8 @@ RUN sed -i -e "s#archive.ubuntu.com#mirrors.tuna.tsinghua.edu.cn#g" -e "s#securi
 
 RUN apt -y update \
 && apt -y upgrade \
+&& apt -y install ca-certificates \
+&& sed -i -e "s#http://#https://#g" /etc/apt/sources.list.d/ubuntu.sources \
 && apt clean \
 && rm -rf /var/lib/apt/lists
 
