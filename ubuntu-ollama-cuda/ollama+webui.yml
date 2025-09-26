@@ -1,0 +1,55 @@
+version: "3"
+
+services:
+  ollama:
+    image: localhost/ollama-qwen3-7-14:latest
+    container_name: ollama
+    #ports:
+    #  - 11434:11434
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    command:
+      - ollama
+      - serve
+    devices:
+      - /dev/nvidia0
+      - /dev/nvidiactl
+      - /dev/nvidia-uvm
+      - /dev/nvidia-uvm-tools
+    volumes:
+      - ${HOME}/.volumes/ollama:/root/.ollama
+      - /usr/lib/x86_64-linux-gnu/libcuda.so:/usr/lib/x86_64-linux-gnu/libcuda.so:ro
+      - /usr/lib/x86_64-linux-gnu/libcuda.so.1:/usr/lib/x86_64-linux-gnu/libcuda.so.1:ro
+      - /usr/lib/x86_64-linux-gnu/libcudadebugger.so.1:/usr/lib/x86_64-linux-gnu/libcudadebugger.so.1:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-ml.so:/usr/lib/x86_64-linux-gnu/libnvidia-ml.so:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1:/usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-nvvm.so:/usr/lib/x86_64-linux-gnu/libnvidia-nvvm.so:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-nvvm.so.4:/usr/lib/x86_64-linux-gnu/libnvidia-nvvm.so.4:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-nvvm70.so:/usr/lib/x86_64-linux-gnu/libnvidia-nvvm70.so:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-opencl.so.1:/usr/lib/x86_64-linux-gnu/libnvidia-opencl.so.1
+      - /usr/lib/x86_64-linux-gnu/libnvidia-ptxjitcompiler.so:/usr/lib/x86_64-linux-gnu/libnvidia-ptxjitcompiler.so:ro
+      - /usr/lib/x86_64-linux-gnu/libnvidia-ptxjitcompiler.so.1:/usr/lib/x86_64-linux-gnu/libnvidia-ptxjitcompiler.so.1:ro
+    networks:
+      - ollama
+
+  openwebui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: openwebui
+    ports:
+      - "8080:8080"
+    volumes:
+      - ${HOME}/.volumes/ollama-webui:/api/backend/data
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+    networks:
+      - ollama
+    depends_on:
+      - ollama
+
+#volumes:
+#  ollama:
+#  ollama-webui:
+#    external: true
+
+networks:
+  ollama:
