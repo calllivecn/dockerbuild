@@ -41,6 +41,7 @@ services:
       - ${HOME}/.volumes/open-webui:/app/backend/data
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
+      - HF_HUB_OFFLINE=1
     networks:
       - ollama
     depends_on:
