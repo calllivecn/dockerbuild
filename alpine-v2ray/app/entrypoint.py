@@ -228,6 +228,8 @@ def testproxy2(url="https://www.google.com/", proxy="http://[::1]:9999") -> bool
                 logger.warning(f"可能才刚启动，代理还没准备好。sleep({wait_sleep}) retry {i}/5")
             except error.URLError as e:
                 logger.warning(f"联通性测试失败。sleep({wait_sleep}) retry {i}/5。")
+            except httpx.RemoteProtocolError as e:
+                logger.warning(f"联通性测试失败: {e}。sleep({wait_sleep}) retry {i}/5。")
             except Exception as e:
                 logger.warning("".join(traceback.format_exception(e)))
 
