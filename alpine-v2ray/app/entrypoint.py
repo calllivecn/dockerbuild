@@ -18,7 +18,6 @@ import traceback
 import subprocess
 from pathlib import Path
 from urllib import (
-    request,
     error,
 )
 from threading import (
@@ -70,12 +69,11 @@ log = Logger()
 logger = log.get_logger()
 
 
-HTTPX=True
 try:
     import httpx
 except ModuleNotFoundError:
-    HTTPX=False
-    logger.warning(f"没有httpx[http2]... 使用标准库 urllib")
+    logger.warning("没有httpx[http2]... 使用标准库 urllib")
+    sys.exit(1)
 
 
 HEADERS = {"User-Agent": "curl/8.5.0"}
@@ -103,11 +101,8 @@ def get(url):
 
 
 def get2(url):
-    # r = httpx.get(url, headers=HEADERS, modeht)
-
     with httpx.Client(http2=True, timeout=30) as client:
         r = client.get(url, headers=HEADERS)
-
     return r.text
 
 
@@ -140,6 +135,7 @@ V2RAY_PATH = Path(os.environ.get("V2RAY_PATH", "/v2ray"))
 
 # 多久更新一次 unit hour
 UPDATE_INTERVAL = int(os.environ.get("UPDATE_INTERVAL", "3"))
+CHECK_URL = os.environ.get("CHECK_URL", "https://www.google.com")
 
 # 是否也输出到文件里
 # log.set_logfile(V2RAY_PATH)
@@ -150,11 +146,10 @@ def check_subscription():
     if API is not None:
 
         try:
-            # result = get(API)
             result = get2(API)
         except Exception as e:
             logger.warning("".join(traceback.format_exception(e)))
-            logger.warning(f"请求流量使用信息出错")
+            logger.warning("请求流量使用信息出错")
             return
 
         j = json.loads(result) 
@@ -176,39 +171,6 @@ def signal_handle(subproc):
 
 
 # 访问 google 测试连通性
-def testproxy(url="https://www.google.com/"):
-
-    # 这是使用标准库的方式
-    req = request.Request(url, headers=HEADERS)
-
-    proxy_handler = request.ProxyHandler({"http": "[::1]:9999", "https": "[::1]:9999"})
-
-    logger.debug(f"proxy req.headers -->: {req.headers}")
-    opener = request.build_opener(proxy_handler)
-
-    result = False
-    wait_sleep = 3
-    for i in range(5):
-        try:
-            html_bytes = opener.open(req, timeout=7).read()
-            result = True
-            break
-        except socket.timeout:
-            logger.warning(f"联通性测试超时。sleep({wait_sleep}) retry {i}/5。")
-        except ConnectionRefusedError as e:
-            logger.warning(f"可能才刚启动，代理还没准备好。sleep({wait_sleep}) retry {i}/5")
-        except error.URLError as e:
-            logger.warning(f"联通性测试失败。sleep({wait_sleep}) retry {i}/5。")
-        except Exception as e:
-            logger.warning("".join(traceback.format_exception(e)))
-
-        if not result:
-            time.sleep(wait_sleep)
-            continue
-
-    return result
-
-
 # 使用httpx + http2
 def testproxy2(url="https://www.google.com/", proxy="http://[::1]:9999") -> bool:
 
@@ -396,12 +358,12 @@ class v2ray_manager:
 
 
     def reboot(self):
-        logger.info(f"发送重启信号...")
+        logger.info("发送重启信号...")
         self.q.put("reboot")
 
     
     def kill(self):
-        logger.info(f"发送退出信号...")
+        logger.info("发送退出信号...")
         self.q.put("kill")
 
 
@@ -450,7 +412,7 @@ class JustMySock:
 
         # 连续请求最小间隔
         # self.MIN_INTERVAL = 30
-        self.MIN_INTERVAL = 180
+        self.MIN_INTERVAL = 300
         self._t_init = 0
 
         self.last_server_info = ""
@@ -460,16 +422,16 @@ class JustMySock:
     def get_subscription(self):
         t = time.time()
         if (t - self._t_init) > self.MIN_INTERVAL:
-            logger.info(f"更新节点信息...")
+            logger.info("更新节点信息...")
             # self.server_info = get(SERVER_URL)
             self.server_info = get2(SERVER_URL)
             check_subscription()
             self._t_init = t
         else:
-            logger.warning(f"短时间内请求订阅地址过多, 本次暂不请求。")
+            logger.warning("短时间内请求订阅地址过多, 本次暂不请求。")
 
         if self.last_server_info == self.server_info:
-            logger.info(f"server 信息没更新。")
+            logger.info("server 信息没更新。")
             self.test_speed()
             self.updated = True
         else:
@@ -483,7 +445,7 @@ class JustMySock:
         speed_sorted = test_connect_speed_thread(self.proxys["vmess"])
         logger.info("测试连接延时:\n" + pprint.pformat(speed_sorted))
         if len(speed_sorted) == 0:
-            logger.info(f"没有连接...")
+            logger.info("没有连接...")
             return
         else:
             updatecfg(speed_sorted)
@@ -515,7 +477,7 @@ def main():
            jms.get_subscription()
         except Exception as e:
             logger.warning("".join(traceback.format_exception(e)))
-            logger.warning(f"请求订阅出错")
+            logger.warning("请求订阅出错")
             time.sleep(30)
             continue
 
@@ -527,14 +489,14 @@ def main():
         sleep_interval = 60*5
         for i in range(0, days, sleep_interval):
             pt1 = time.time()
-            # tf = testproxy()
             tf = testproxy2()
             pt2 = time.time()
+            t = pt2 - pt1
             if tf:
-                logger.info(f"联通性测试ok")
+                logger.info(f"联通性测试ok。耗时:{t}/s")
             else:
-                logger.warning(f"联通性测试失败, 更新配置或重启。")
-                jms.conne_fail = True
+                logger.warning(f"联通性测试失败, 更新配置或重启。耗时:{t}/s")
+                jms.conn_fail = True
                 break
 
             time.sleep(sleep_interval - (pt2-pt1))
