@@ -27,7 +27,7 @@ from concurrent.futures import ThreadPoolExecutor
 from logging.handlers import TimedRotatingFileHandler
 
 
-V2RAY_CONFIG_JSON = None
+V2RAY_CONFIG_JSON = {}
 
 def readcfg():
     global V2RAY_CONFIG_JSON
@@ -57,7 +57,7 @@ class Logger:
         self.logger.addHandler(self.fp)
 
     def set_level(self, level):
-        self.logger.set_level(level)
+        self.logger.setLevel(level)
 
 
     def get_logger(self):
@@ -88,16 +88,6 @@ def runtime(prompt):
             return result
         return warp
     return decorator
-
-
-# 这是标准库的版本保留下。
-"""
-def get(url):
-    req = request.Request(url, headers=HEADERS, method="GET")
-    data = request.urlopen(req, timeout=30)
-    context = data.read()
-    return context
-"""
 
 
 def get2(url):
@@ -138,7 +128,7 @@ UPDATE_INTERVAL = int(os.environ.get("UPDATE_INTERVAL", "3"))
 CHECK_URL = os.environ.get("CHECK_URL", "https://www.google.com")
 
 # 是否也输出到文件里
-# log.set_logfile(V2RAY_PATH)
+log.set_logfile(V2RAY_PATH)
 
 # 查看当前流量使用情况，和到期时间。
 def check_subscription():
@@ -191,6 +181,8 @@ def testproxy2(url="https://www.google.com/", proxy="http://[::1]:9999") -> bool
             except error.URLError as e:
                 logger.warning(f"联通性测试失败。sleep({wait_sleep}) retry {i}/5。")
             except httpx.RemoteProtocolError as e:
+                logger.warning(f"联通性测试失败: {e}。sleep({wait_sleep}) retry {i}/5。")
+            except httpx.ReadTimeout as e:
                 logger.warning(f"联通性测试失败: {e}。sleep({wait_sleep}) retry {i}/5。")
             except Exception as e:
                 logger.warning("".join(traceback.format_exception(e)))
@@ -324,6 +316,9 @@ def updatecfg(vmess_json):
 
     outbounds.append(s801)
     V2RAY_CONFIG_JSON["outbounds"] = outbounds
+
+    V2RAY_CONFIG_JSON["log"]["access"] = str(V2RAY_PATH / "access.log")
+    V2RAY_CONFIG_JSON["log"]["error"] = str(V2RAY_PATH / "error.log")
 
     with open(V2RAY_PATH / "config.json", "w") as f:
         f.write(json.dumps(V2RAY_CONFIG_JSON, ensure_ascii=False, indent=4))
