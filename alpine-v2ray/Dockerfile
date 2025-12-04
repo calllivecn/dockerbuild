@@ -7,7 +7,7 @@ FROM alpine-py3:latest
 COPY app/ /app
 COPY v2ray/ /v2ray
 
-RUN pip install --break-system-packages httpx[http2,socks] \
+RUN pip install --break-system-packages httpx[http2,socks]==0.28.1 \
 && mkdir -vp /logs
 
 ENTRYPOINT ["/app/entrypoint.py"]
