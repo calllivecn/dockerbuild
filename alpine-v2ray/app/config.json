@@ -1,7 +1,7 @@
 {
     "log": {
         "loglevel": "info",
-        "access": "/logs/access.log",
+        "access": "/logs/access.log 会在app.py里修改",
         "error": "/logs/error.log"
     },
     "inbounds": [

@@ -105,7 +105,7 @@ def getenv(key):
         return value
 
 # base64 补上=号
-def check_b64(data):
+def check_b64(data) -> bytes:
     return data + b"=" * (4 - len(data) % 4)
 
 
@@ -126,9 +126,10 @@ V2RAY_PATH = Path(os.environ.get("V2RAY_PATH", "/v2ray"))
 # 多久更新一次 unit hour
 UPDATE_INTERVAL = int(os.environ.get("UPDATE_INTERVAL", "3"))
 CHECK_URL = os.environ.get("CHECK_URL", "https://www.google.com")
+LOGS_PATH = Path(os.environ.get("LOGS_PATH", "/logs"))
 
 # 是否也输出到文件里
-log.set_logfile(V2RAY_PATH)
+log.set_logfile(LOGS_PATH)
 
 # 查看当前流量使用情况，和到期时间。
 def check_subscription():
@@ -163,7 +164,8 @@ def signal_handle(subproc):
 # 访问 google 测试连通性
 # 使用httpx + http2
 def testproxy2(url="https://www.google.com/", proxy="http://[::1]:9999") -> bool:
-
+    url2 = os.environ.get("CHECK_URL", url)
+    url = url2
     result = False
 
     with httpx.Client(http2=True, proxy=proxy, timeout=15) as client:
@@ -178,7 +180,7 @@ def testproxy2(url="https://www.google.com/", proxy="http://[::1]:9999") -> bool
                 logger.warning(f"联通性测试超时。sleep({wait_sleep}) retry {i}/5。")
             except httpx.ConnectError:
                 logger.warning(f"可能才刚启动，代理还没准备好。sleep({wait_sleep}) retry {i}/5")
-            except error.URLError as e:
+            except error.URLError:
                 logger.warning(f"联通性测试失败。sleep({wait_sleep}) retry {i}/5。")
             except httpx.RemoteProtocolError as e:
                 logger.warning(f"联通性测试失败: {e}。sleep({wait_sleep}) retry {i}/5。")
@@ -253,7 +255,7 @@ def test_connect(addr: tuple[str, int]) -> int:
         sock = socket.create_connection(addr, timeout=7)
     except socket.timeout:
         logger.warning(f"测试连接速度超时: {addr}")
-        return None
+        return -1
 
     sock.close()
     t2 = time.time()
@@ -269,7 +271,7 @@ def test_connect_speed_thread(vmess_list):
     map_result = pool.map(test_connect, ((vmess["add"], vmess["port"]) for vmess in vmess_list))
 
     for t, vmess in zip(map_result, vmess_list):
-        if t is not None:
+        if t >= 0.0:
             score.append((t, vmess))
 
     pool.shutdown()
@@ -317,8 +319,8 @@ def updatecfg(vmess_json):
     outbounds.append(s801)
     V2RAY_CONFIG_JSON["outbounds"] = outbounds
 
-    V2RAY_CONFIG_JSON["log"]["access"] = str(V2RAY_PATH / "access.log")
-    V2RAY_CONFIG_JSON["log"]["error"] = str(V2RAY_PATH / "error.log")
+    V2RAY_CONFIG_JSON["log"]["access"] = str(LOGS_PATH / "access.log")
+    V2RAY_CONFIG_JSON["log"]["error"] = str(LOGS_PATH / "error.log")
 
     with open(V2RAY_PATH / "config.json", "w") as f:
         f.write(json.dumps(V2RAY_CONFIG_JSON, ensure_ascii=False, indent=4))
@@ -339,7 +341,7 @@ class v2ray_manager:
 
         self.start()
 
-    def v2ray(self, config: Path = None):
+    def v2ray(self, config: Path):
 
         # v4.xx.x
         #subproc = subprocess.run(f"/v2ray/v2ray -config {config}".split())
@@ -418,7 +420,6 @@ class JustMySock:
         t = time.time()
         if (t - self._t_init) > self.MIN_INTERVAL:
             logger.info("更新节点信息...")
-            # self.server_info = get(SERVER_URL)
             self.server_info = get2(SERVER_URL)
             check_subscription()
             self._t_init = t
