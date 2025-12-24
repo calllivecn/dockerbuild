@@ -12,7 +12,7 @@ public class AudioRecorderDaemon {
 
     public static void main(String[] args) {
         // app_process 启动时会调用这个 main 方法
-        Log.d(TAG, "Daemon started with args: " + String.join(" ", args));
+        System.out.println(TAG, "Daemon started with args: " + String.join(" ", args));
 
         // 创建一个实例来执行实际的录音逻辑
         AudioRecorderDaemon daemon = new AudioRecorderDaemon();

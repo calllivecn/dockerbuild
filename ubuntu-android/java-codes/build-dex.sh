@@ -18,16 +18,16 @@ if [ -d "$build" ];then
 	rm -rf "$build"
 fi
 
-# 输出前缀
-PREFIX="$1"
-shift
+# 输出*.dex前缀
+PREFIX="${1%.java}"
 
 # 编译 Java 文件，生成 .class 文件
+# -encoding UTF-8
 # -source 1.8 -target 1.8 确保兼容性
 # --release 8 是 Java 8 的简写
 #javac --release 8 -classpath "$ANDROID_JAR" CameraVideoRecorder.java InitializeAndroidEnvironment.java -d "$build"
-echo javac --release 17 -Xlint:deprecation -classpath "$ANDROID_JAR" "$@" -d "$build"
-javac --release 17 -Xlint:deprecation -classpath "$ANDROID_JAR" "$@" -d "$build"
+echo javac -encoding UTF-8 --release 17 -Xlint:deprecation -classpath "$ANDROID_JAR" "$@" -d "$build"
+javac -encoding UTF-8 --release 17 -Xlint:deprecation -classpath "$ANDROID_JAR" "$@" -d "$build"
 
 # 检查编译是否成功
 if [ $? -ne 0 ]; then

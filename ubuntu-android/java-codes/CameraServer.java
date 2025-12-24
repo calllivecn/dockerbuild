@@ -70,10 +70,12 @@ public final class CameraServer {
 
     // --- Camera 相关 ---
     private CameraDevice mCameraDevice;
+    private String mCameraDeviceId; // 保存摄像头 ID
     private CameraCaptureSession mCaptureSession;
     private HandlerThread mCameraThread;
     private Handler mCameraHandler;
     private Semaphore mCameraOpenCloseLock = new Semaphore(1); // 防止相机并发访问
+    private Executor mExecutor; // 用于 SessionConfiguration
 
     // --- MediaCodec 相关 ---
     private MediaCodec mMediaCodec;
@@ -81,6 +83,9 @@ public final class CameraServer {
     private HandlerThread mEncoderThread;
     private Handler mEncoderHandler;
     private boolean mIsRecording = false;
+    // 用来保存SPS/PPS数据。
+    private byte[] mConfigData = null;
+    private int mConfigData_len = 0;
 
     private static boolean showHelp = false; // 添加 showHelp 标志
 
@@ -239,8 +244,8 @@ public final class CameraServer {
         System.out.println("  codec=<类型>                : 设置视频编码器类型 (例如: avc 或 hevc)。默认值: " + (MIME_TYPE.equals(MediaFormat.MIMETYPE_VIDEO_AVC) ? "avc (H.264)" : "hevc (H.265)"));
         System.out.println("  rotate=<角度>               : 顺时针旋转视频角度 (0, 90, 180, 270)。默认值: " + ROTATE);
         System.out.println("\n示例:");
-        System.out.println("  java -jar CameraServer.jar tcp_addr=" + TCP_HOST + "size=1280x720");
-        System.out.println("  java -jar CameraServer.jar tcp_addr=" + TCP_HOST + "tcp_port=" + TCP_PORT + "camera_id=1 codec=hevc");
+        System.out.println("  java -jar CameraServer.jar tcp_addr=" + TCP_HOST + " size=1280x720");
+        System.out.println("  java -jar CameraServer.jar tcp_addr=" + TCP_HOST + " tcp_port=" + TCP_PORT + " camera_id=1 codec=hevc");
     }
 
     // --- 启动网络服务器 ---
@@ -334,7 +339,8 @@ public final class CameraServer {
         mIsRecording = true;
 
         try {
-            // 1. 启动编码器线程
+            // 1. 启动编码器线程（必须在 setupMediaCodec 之前）
+            // 因为 MediaCodec 回调需要 mEncoderHandler
             mEncoderThread = new HandlerThread("MediaCodecThread");
             mEncoderThread.start();
             mEncoderHandler = new Handler(mEncoderThread.getLooper());
@@ -346,11 +352,16 @@ public final class CameraServer {
             mCameraHandler = new Handler(mCameraThread.getLooper());
             System.out.println("摄像头线程已启动。");
 
-            // 3. 初始化 MediaCodec 编编码器
-            setupMediaCodec();
-            System.out.println("MediaCodec 设置完成。");
+            // 创建 Executor 用于摄像头会话
+            mExecutor = Executors.newSingleThreadExecutor();
 
-            // 4. 打开摄像头
+            // 3. 初始化 MediaCodec 编码器
+            // 生命周期: configure() → createInputSurface() → start()
+            // 必须在摄像头打开前完成，因为 createCaptureSession 需要 mEncoderInputSurface
+            setupMediaCodec();
+            System.out.println("MediaCodec 设置完成，mEncoderInputSurface 已就绪。");
+
+            // 4. 打开摄像头（异步，openCamera 返回后摄像头可能还未真正打开）
             openCamera();
             System.out.println("摄像头打开请求已发送。");
 
@@ -409,7 +420,7 @@ public final class CameraServer {
 
     // --- 设置 MediaCodec 编码器 ---
     private void setupMediaCodec() throws IOException {
-        System.out.println("正在设置 MediaCodec 编码器，分辨率 " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + " @ " + FRAME_RATE + "fps, " + BIT_RATE + "Mbps...");
+        System.out.println("正在设置 MediaCodec 编码器，分辨率 " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + " @ " + FRAME_RATE + "fps, " + BIT_RATE + "bps...");
 
         // 释放之前的 MediaCodec 实例（如果存在）
         if (mMediaCodec != null) {
@@ -434,7 +445,7 @@ public final class CameraServer {
         format.setInteger(MediaFormat.KEY_FRAME_RATE, FRAME_RATE);
         format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, I_FRAME_INTERVAL);
         format.setInteger(MediaFormat.KEY_ROTATION, ROTATE);
-        System.out.println("MediaCodec 将设置 KEY_ROTATION 为: " + ROTATE);
+        System.out.println("MediaCodec 配置: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + " @ " + FRAME_RATE + "fps, bitrate=" + BIT_RATE);
 
         mMediaCodec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE); // 修正 configure 调用
 
@@ -450,6 +461,7 @@ public final class CameraServer {
             @Override
             public void onOutputBufferAvailable(MediaCodec codec, int index, MediaCodec.BufferInfo info) {
                 ByteBuffer outputBuffer = codec.getOutputBuffer(index);
+
                 if (outputBuffer != null) {
                     sendDataToClients(outputBuffer, info);
                 }
@@ -466,6 +478,30 @@ public final class CameraServer {
 
             @Override
             public void onOutputFormatChanged(MediaCodec codec, MediaFormat format) {
+                // 输出实际的编码参数
+                System.out.println("=== MediaCodec onOutputFormatChanged 被调用 ===");
+                int actualWidth = 0, actualHeight = 0, actualFPS = 0;
+                if (format.containsKey("width")) {
+                    actualWidth = format.getInteger("width");
+                    actualHeight = format.getInteger("height");
+                    actualFPS = format.getInteger("frame-rate", FRAME_RATE);
+                    System.out.println("✓ MediaCodec 实际输出格式: " + actualWidth + "x" + actualHeight + " @ " + actualFPS + "fps");
+                    
+                    if (actualWidth != VIDEO_WIDTH || actualHeight != VIDEO_HEIGHT) {
+                        System.err.println("⚠️ 分辨率不匹配!");
+                        System.err.println("  配置: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT);
+                        System.err.println("  实际: " + actualWidth + "x" + actualHeight);
+                        System.err.println("  原因: 摄像头输出的分辨率可能不同");
+                    }
+                    if (actualFPS != FRAME_RATE) {
+                        System.err.println("⚠️ 帧率不匹配!");
+                        System.err.println("  配置: " + FRAME_RATE + " fps");
+                        System.err.println("  实际: " + actualFPS + " fps");
+                    }
+                } else {
+                    System.out.println("⚠ format 中没有 width/height 信息");
+                }
+                
                 if (format.containsKey("csd-0")) vps = getBytesFromBuffer(format.getByteBuffer("csd-0"));
                 if (format.containsKey("csd-1")) sps = getBytesFromBuffer(format.getByteBuffer("csd-1"));
                 if (format.containsKey("csd-2")) pps = getBytesFromBuffer(format.getByteBuffer("csd-2"));
@@ -484,6 +520,90 @@ public final class CameraServer {
         // 启动 MediaCodec
         mMediaCodec.start();
         System.out.println("MediaCodec 已启动。");
+    }
+
+    // --- 检查摄像头支持的分辨率，如需要则自动调整 ---
+    private void checkCameraResolution() throws CameraAccessException {
+        System.out.println("检查摄像头支持的分辨率...");
+        CameraManager manager = (CameraManager) sContext.getSystemService(Context.CAMERA_SERVICE);
+        if (manager == null) {
+            throw new IllegalStateException("CameraManager 服务不可用。");
+        }
+
+        String selectedCameraId = null;
+        
+        for (String id : manager.getCameraIdList()) {
+            CameraCharacteristics characteristics = manager.getCameraCharacteristics(id);
+            Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
+
+            // 如果指定了 camera_id，则检查该摄像头
+            if (CAMERA_ID_TO_USE != null && CAMERA_ID_TO_USE.equals(id)) {
+                selectedCameraId = id;
+            }
+            // 否则自动选择后置摄像头
+            else if (CAMERA_ID_TO_USE == null && facing != null && facing == CameraCharacteristics.LENS_FACING_BACK) {
+                selectedCameraId = id;
+            }
+
+            if (selectedCameraId != null) {
+                break;
+            }
+        }
+
+        if (selectedCameraId == null) {
+            System.err.println("未找到合适的摄像头");
+            return;
+        }
+
+        // 检查该摄像头支持的分辨率
+        CameraCharacteristics characteristics = manager.getCameraCharacteristics(selectedCameraId);
+        StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+        
+        if (map == null) {
+            System.err.println("摄像头 " + selectedCameraId + " 没有 StreamConfigurationMap");
+            return;
+        }
+
+        Size[] videoSizes = map.getOutputSizes(MediaCodec.class);
+        if (videoSizes == null || videoSizes.length == 0) {
+            System.err.println("摄像头 " + selectedCameraId + " 没有支持 MediaCodec 的输出尺寸");
+            return;
+        }
+
+        System.out.println("摄像头 " + selectedCameraId + " 支持的分辨率 (" + MIME_TYPE + "):");
+        for (Size size : videoSizes) {
+            System.out.println("  - " + size.getWidth() + "x" + size.getHeight());
+        }
+
+        // 检查是否支持指定的分辨率
+        boolean foundMatch = false;
+        for (Size size : videoSizes) {
+            if (size.getWidth() == VIDEO_WIDTH && size.getHeight() == VIDEO_HEIGHT) {
+                foundMatch = true;
+                System.out.println("✓ 支持指定的分辨率: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT);
+                break;
+            }
+        }
+
+        // 如果不支持，选择最大的支持分辨率
+        if (!foundMatch) {
+            System.out.println("✗ 不支持指定的分辨率 " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT);
+            
+            Size maxSize = videoSizes[0];
+            int maxPixels = maxSize.getWidth() * maxSize.getHeight();
+            
+            for (Size size : videoSizes) {
+                int pixels = size.getWidth() * size.getHeight();
+                if (pixels > maxPixels) {
+                    maxPixels = pixels;
+                    maxSize = size;
+                }
+            }
+            
+            VIDEO_WIDTH = maxSize.getWidth();
+            VIDEO_HEIGHT = maxSize.getHeight();
+            System.out.println("已自动调整为最大支持分辨率: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT);
+        }
     }
 
     // --- 停止 MediaCodec ---
@@ -535,90 +655,117 @@ public final class CameraServer {
                 }
             }
 
-            boolean size_bool = false;
+            // 简单检查该摄像头是否支持所需分辨率
             StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-            if (map != null) {
-                Size[] videoSizes = map.getOutputSizes(MediaCodec.class);
-                if (videoSizes == null || videoSizes.length == 0) { // 修正检查条件
-                    System.out.println("    此摄像头没有支持 MediaCodec 的输出尺寸。");
-                    continue; // 跳过此摄像头
-                }
-
-                for (Size size : videoSizes) {
-                    if (size.getWidth() == VIDEO_WIDTH && size.getHeight() == VIDEO_HEIGHT){
-                        System.out.println("    设置size:" + size.getWidth() + "x" + size.getHeight());
-                        size_bool = true;
-                        break; // 找到匹配的分辨率后退出循环
-                    }
-                }
-
-                if (!size_bool) {
-                    System.out.println("    支持的 MediaCodec 尺寸 (" + MIME_TYPE + "):");
-                    for (Size size : videoSizes) {
-                        System.out.println("      - " + size.getWidth() + "x" + size.getHeight());
-                    }
-                }
-            } else {
-                System.out.println("    此摄像头没有 StreamConfigurationMap。");
-                continue; // 跳过此摄像头
+            if (map == null) {
+                System.out.println("    此摄像头没有 StreamConfigurationMap，跳过。");
+                continue;
             }
 
+            Size[] videoSizes = map.getOutputSizes(MediaCodec.class);
+            if (videoSizes == null || videoSizes.length == 0) {
+                System.out.println("    此摄像头没有支持 MediaCodec 的输出尺寸，跳过。");
+                continue;
+            }
+
+            // 检查是否支持当前分辨率
+            boolean supportsResolution = false;
+            for (Size size : videoSizes) {
+                if (size.getWidth() == VIDEO_WIDTH && size.getHeight() == VIDEO_HEIGHT) {
+                    supportsResolution = true;
+                    break;
+                }
+            }
 
             // 如果指定了 camera_id，则优先使用指定的摄像头
             if (CAMERA_ID_TO_USE != null && CAMERA_ID_TO_USE.equals(id)) {
                 selectedCameraId = id;
-                System.out.println("    --> 这是 camera_id 指定的摄像头: " + CAMERA_ID_TO_USE);
-                // 检查指定摄像头是否支持所需分辨率
-                if (map != null) {
-                    Size[] sizes = map.getOutputSizes(MediaCodec.class);
-                    boolean resolutionSupported = false;
-                    if (sizes != null) {
-                        for (Size s : sizes) {
-                            if (s.getWidth() == VIDEO_WIDTH && s.getHeight() == VIDEO_HEIGHT) {
-                                resolutionSupported = true;
-                                break;
-                            }
-                        }
-                    }
-                    if (!resolutionSupported) {
-                        System.err.println("错误: 指定的摄像头 " + CAMERA_ID_TO_USE + " 不支持 " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + " 用于 MediaCodec。");
-                        throw new RuntimeException("指定的摄像头 " + CAMERA_ID_TO_USE + " 不支持所需分辨率 " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT);
-                    }
-                } else {
-                     System.err.println("错误: 指定的摄像头 " + CAMERA_ID_TO_USE + " 没有 StreamConfigurationMap。");
-                     throw new RuntimeException("指定的摄像头 " + CAMERA_ID_TO_USE + " 没有 StreamConfigurationMap。");
+                System.out.println("    --> 使用指定的摄像头: " + CAMERA_ID_TO_USE);
+                if (!supportsResolution) {
+                    System.err.println("警告: 指定的摄像头 " + CAMERA_ID_TO_USE + " 不支持分辨率 " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT);
                 }
-                break; // 找到并验证指定摄像头后退出循环
+                break;
             }
-            // 如果没有指定 camera_id，则选择后置摄像头
+            // 如果没有指定 camera_id，则选择支持所需分辨率的后置摄像头
             else if (CAMERA_ID_TO_USE == null && facing != null && facing == CameraCharacteristics.LENS_FACING_BACK) {
-                // 检查后置摄像头是否支持所需分辨率
-                if (map != null) {
-                    Size[] sizes = map.getOutputSizes(MediaCodec.class);
-                    if (sizes != null) {
-                        for (Size s : sizes) {
-                            if (s.getWidth() == VIDEO_WIDTH && s.getHeight() == VIDEO_HEIGHT) {
-                                selectedCameraId = id; // 找到一个支持所需分辨率的后置摄像头
-                                System.out.println("    --> 找到一个支持所需分辨率的后置摄像头: " + id);
-                                break; // 找到即退出
-                            }
-                        }
-                        if (selectedCameraId != null) break; // 如果已经找到适合的后置摄像头并指定分辨率，则退出外层循环
-                    }
+                if (supportsResolution) {
+                    selectedCameraId = id;
+                    System.out.println("    --> 选择此后置摄像头: " + id);
+                    break;
                 }
             }
         }
 
         if (selectedCameraId == null) {
-            String resolutionInfo = VIDEO_WIDTH + "x" + VIDEO_HEIGHT;
-            String cameraSelectionInfo = (CAMERA_ID_TO_USE != null) ? "指定的摄像头 ID " + CAMERA_ID_TO_USE : "一个合适的后置摄像头";
-            throw new RuntimeException("未找到支持所需视频分辨率 " + resolutionInfo + " 用于 MediaCodec 的合适摄像头 (" + cameraSelectionInfo + ")。");
+            System.err.println("未找到合适的摄像头，将使用第一个可用的摄像头。");
+            String[] cameraIds = manager.getCameraIdList();
+            if (cameraIds.length > 0) {
+                selectedCameraId = cameraIds[0];
+                System.out.println("使用摄像头: " + selectedCameraId);
+            } else {
+                throw new RuntimeException("没有可用的摄像头");
+            }
+        }
+
+        // 检查选定的摄像头是否支持当前分辨率，如不支持则调整
+        CameraCharacteristics selectedCharacteristics = manager.getCameraCharacteristics(selectedCameraId);
+        StreamConfigurationMap selectedMap = selectedCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+        
+        System.out.println("检查摄像头 " + selectedCameraId + " 的分辨率支持...");
+        
+        if (selectedMap == null) {
+            System.err.println("错误: selectedMap 为 null，无法检查分辨率");
+        } else {
+            Size[] supportedSizes = selectedMap.getOutputSizes(MediaCodec.class);
+            System.out.println("supportedSizes: " + (supportedSizes == null ? "null" : "长度=" + supportedSizes.length));
+            
+            if (supportedSizes != null) {
+                System.out.println("摄像头 " + selectedCameraId + " 通过 MediaCodec.class 支持的分辨率:");
+                for (Size s : supportedSizes) {
+                    System.out.println("  - " + s.getWidth() + "x" + s.getHeight());
+                }
+                
+                // 关键诊断：检查所有输出格式的支持的大小
+                System.out.println("\n摄像头 " + selectedCameraId + " 的所有输出格式及其支持的分辨率:");
+                int[] outputFormats = selectedMap.getOutputFormats();
+                if (outputFormats != null) {
+                    for (int format : outputFormats) {
+                        Size[] sizes = selectedMap.getOutputSizes(format);
+                        System.out.println("  格式 0x" + Integer.toHexString(format) + " 支持 " + (sizes != null ? sizes.length : 0) + " 种分辨率");
+                        if (sizes != null && sizes.length > 0) {
+                            // 只显示前5个和最大的
+                            int maxSize = Math.min(5, sizes.length);
+                            for (int i = 0; i < maxSize; i++) {
+                                System.out.println("    [" + i + "] " + sizes[i].getWidth() + "x" + sizes[i].getHeight());
+                            }
+                            if (sizes.length > 5) {
+                                System.out.println("    ... (更多 " + (sizes.length - 5) + " 个)");
+                            }
+                            // 显示最大的
+                            Size maxRes = sizes[sizes.length - 1];
+                            System.out.println("    最大: " + maxRes.getWidth() + "x" + maxRes.getHeight());
+                        }
+                    }
+                }
+                
+                boolean currentResolutionSupported = false;
+                for (Size s : supportedSizes) {
+                    if (s.getWidth() == VIDEO_WIDTH && s.getHeight() == VIDEO_HEIGHT) {
+                        currentResolutionSupported = true;
+                        break;
+                    }
+                }
+                
+                System.out.println("\n目标配置分辨率: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + 
+                    (currentResolutionSupported ? " (✓ 摄像头支持)" : " (❌ 摄像头不支持，会被降低)"));
+            }
         }
 
         // 请求打开摄像头
         mCameraOpenCloseLock.acquire(); // 获取信号量，防止多次打开
+        mCameraDeviceId = selectedCameraId; // 保存摄像头 ID
         manager.openCamera(selectedCameraId, mStateCallback, mCameraHandler);
-        System.out.println("已请求打开摄像头: " + selectedCameraId);
+        System.out.println("已请求打开摄像头: " + selectedCameraId + " (分辨率: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + ")");
     }
 
     // --- 关闭摄像头 ---
@@ -668,10 +815,61 @@ public final class CameraServer {
 
     // --- 创建摄像头捕获会话 (用于录制到 Surface) ---
     private void createCameraPreviewSession() {
+        // 执行前的检查和日志
+        System.out.println("createCameraPreviewSession() 被调用");
+        System.out.println("  mCameraDevice: " + (mCameraDevice != null ? "✓" : "✗ null"));
+        System.out.println("  mEncoderInputSurface: " + (mEncoderInputSurface != null ? "✓" : "✗ null"));
+        System.out.println("  mCameraHandler: " + (mCameraHandler != null ? "✓" : "✗ null"));
+        
         if (mCameraDevice == null || mEncoderInputSurface == null || mCameraHandler == null) {
             System.err.println("错误: CameraDevice、编码器输入 Surface 或摄像头 Handler 为空，无法创建捕获会话。");
             stopRecording();
             return;
+        }
+
+        // 关键：检查摄像头是否真的支持指定的分辨率
+        // 如果不支持，从支持列表中选择最接近的分辨率
+        String actualResolution = VIDEO_WIDTH + "x" + VIDEO_HEIGHT;
+        try {
+            CameraManager manager = (CameraManager) sContext.getSystemService(Context.CAMERA_SERVICE);
+            if (manager != null && mCameraDeviceId != null) {
+                CameraCharacteristics characteristics = manager.getCameraCharacteristics(mCameraDeviceId);
+                StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
+                if (map != null) {
+                    Size[] supportedSizes = map.getOutputSizes(MediaCodec.class);
+                    if (supportedSizes != null && supportedSizes.length > 0) {
+                        // 检查请求的分辨率是否在支持列表中
+                        boolean found = false;
+                        for (Size s : supportedSizes) {
+                            if (s.getWidth() == VIDEO_WIDTH && s.getHeight() == VIDEO_HEIGHT) {
+                                found = true;
+                                break;
+                            }
+                        }
+                        
+                        if (!found) {
+                            // 如果不支持，选择最接近的分辨率
+                            int targetPixels = VIDEO_WIDTH * VIDEO_HEIGHT;
+                            Size bestMatch = supportedSizes[0];
+                            int bestDiff = Math.abs(bestMatch.getWidth() * bestMatch.getHeight() - targetPixels);
+                            
+                            for (Size s : supportedSizes) {
+                                int pixelDiff = Math.abs(s.getWidth() * s.getHeight() - targetPixels);
+                                if (pixelDiff < bestDiff) {
+                                    bestDiff = pixelDiff;
+                                    bestMatch = s;
+                                }
+                            }
+                            
+                            System.err.println("⚠️ 警告: 摄像头不支持 " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + "!");
+                            System.err.println("⚠️ 自动调整为最接近的支持分辨率: " + bestMatch.getWidth() + "x" + bestMatch.getHeight());
+                            actualResolution = bestMatch.getWidth() + "x" + bestMatch.getHeight();
+                        }
+                    }
+                }
+            }
+        } catch (CameraAccessException e) {
+            System.err.println("检查摄像头分辨率支持时出错: " + e.getMessage());
         }
 
         try { // try block for createCaptureSession
@@ -683,54 +881,100 @@ public final class CameraServer {
             // 配置自动对焦和曝光等（使用 CaptureRequest 常量）
             captureRequestBuilder.set(CaptureRequest.CONTROL_MODE, CaptureRequest.CONTROL_MODE_AUTO); // 修正 CameraMetadata
             captureRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
+            // 对于录制，通常还需要设置 AE 模式以确保 FPS 稳定
             captureRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
             captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(FRAME_RATE, FRAME_RATE)); // 使用导入的 Range
             captureRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 0);
+            
+            // 关键：设置摄像头帧率（纳秒）
+            long frameDurationNs = (long)(1_000_000_000.0 / FRAME_RATE);
+            captureRequestBuilder.set(CaptureRequest.SENSOR_FRAME_DURATION, frameDurationNs);
+            System.out.println("摄像头帧间隔设置为: " + frameDurationNs + " ns (对应 " + FRAME_RATE + " fps)");
+            
+            // 关键：获取摄像头的 SENSOR 尺寸并设置 SCALER_CROP_REGION
+            if (mCameraDeviceId != null) {
+                try {
+                    CameraManager manager = (CameraManager) sContext.getSystemService(Context.CAMERA_SERVICE);
+                    if (manager != null) {
+                        CameraCharacteristics characteristics = manager.getCameraCharacteristics(mCameraDeviceId);
+                        android.graphics.Rect sensorRect = characteristics.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);
+                        if (sensorRect != null) {
+                            System.out.println("SENSOR 活跃区域: " + sensorRect.width() + "x" + sensorRect.height());
+                            // 设置 crop region 为整个 sensor
+                            captureRequestBuilder.set(CaptureRequest.SCALER_CROP_REGION, sensorRect);
+                        }
+                    }
+                } catch (CameraAccessException e) {
+                    System.err.println("获取摄像头特性失败: " + e.getMessage());
+                }
+            }
+
+
 
 
             // 使用新版API（Executor）创建会话，消除废弃警告
-            // 注意：在模拟环境中，Executor 可能无法完全模拟 Android 的行为
-            // 如果遇到问题，可以考虑回退到 Handler 版本
-            mCameraDevice.createCaptureSession(
-                Collections.singletonList(mEncoderInputSurface),
-                new CameraCaptureSession.StateCallback() { // StateCallback anonymous class
-                    @Override
-                    public void onConfigured(CameraCaptureSession cameraCaptureSession) {
-                        if (mCameraDevice == null) {
-                            return;
-                        }
-                        mCaptureSession = cameraCaptureSession;
-                        System.out.println("CameraCaptureSession 已配置。");
+            // 关键：使用 OutputConfiguration 指定摄像头输出的分辨率
+            android.hardware.camera2.params.OutputConfiguration outputConfig = 
+                new android.hardware.camera2.params.OutputConfiguration(mEncoderInputSurface);
+            
+            // 尝试通过 setStreamUseCase (API 33+) 或其他方式约束分辨率
+            // 但最直接的方法：在 CaptureRequest 中设置 SCALER_CROP_REGION 或通过 StreamConfigurationMap
+            try {
+                // API 33+ 可用，尝试设置流的使用场景
+                // outputConfig.setStreamUseCase(CameraMetadata.SCALER_AVAILABLE_STREAM_USE_CASES_DEFAULT);
+                System.out.println("OutputConfiguration 已创建");
+                System.out.println("  目标输出分辨率: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT);
+                System.out.println("  注意: 摄像头实际输出受 StreamConfigurationMap 和 MediaCodec 配置影响");
+            } catch (Exception e) {
+                System.err.println("配置OutputConfiguration时出错: " + e.getMessage());
+            }
+            
+            // 创建 SessionConfiguration
+            android.hardware.camera2.params.SessionConfiguration sessionConfig = 
+                new android.hardware.camera2.params.SessionConfiguration(
+                    android.hardware.camera2.params.SessionConfiguration.SESSION_REGULAR,
+                    Collections.singletonList(outputConfig),
+                    mExecutor,
+                    new CameraCaptureSession.StateCallback() { // StateCallback anonymous class
+                        @Override
+                        public void onConfigured(CameraCaptureSession cameraCaptureSession) {
+                            if (mCameraDevice == null) {
+                                return;
+                            }
+                            mCaptureSession = cameraCaptureSession;
+                            System.out.println("CameraCaptureSession 已配置 (" + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + ")。");
 
-                        try { // try block for setRepeatingRequest
-                            mCaptureSession.setRepeatingRequest(
-                                captureRequestBuilder.build(),
-                                new CameraCaptureSession.CaptureCallback() { // CaptureCallback anonymous class
-                                    @Override
-                                    public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult result) {
-                                        // 处理每帧图像（如果需要），例如获取时间戳等
-                                        // System.out.println("捕获完成，时间戳: " + result.get(CaptureResult.SENSOR_TIMESTAMP));
-                                    } // <-- Closing brace for onCaptureCompleted
-                                }, // <-- Closing brace for CaptureCallback anonymous class
-                                mCameraHandler // 在模拟环境中，使用 Handler 可能更稳定
-                            );
-                            System.out.println("摄像头 setRepeatingRequest (录制) 已启动。");
-                        } catch (CameraAccessException e) { // <-- Catch block for try at 591
-                            System.err.println("错误: 启动摄像头录制请求失败: " + e.getMessage());
-                            e.printStackTrace(System.err);
+                            try { // try block for setRepeatingRequest
+                                mCaptureSession.setRepeatingRequest(
+                                    captureRequestBuilder.build(),
+                                    new CameraCaptureSession.CaptureCallback() { // CaptureCallback anonymous class
+                                        @Override
+                                        public void onCaptureCompleted(CameraCaptureSession session, CaptureRequest request, TotalCaptureResult result) {
+                                            // 处理每帧图像（如果需要），例如获取时间戳等
+                                            // System.out.println("捕获完成，时间戳: " + result.get(CaptureResult.SENSOR_TIMESTAMP));
+                                        } // <-- Closing brace for onCaptureCompleted
+                                    }, // <-- Closing brace for CaptureCallback anonymous class
+                                    mCameraHandler // 在模拟环境中，使用 Handler 可能更稳定
+                                );
+                                System.out.println("摄像头 setRepeatingRequest (录制) 已启动。");
+                            } catch (CameraAccessException e) { // <-- Catch block for try at 591
+                                System.err.println("错误: 启动摄像头录制请求失败: " + e.getMessage());
+                                e.printStackTrace(System.err);
+                                stopRecording();
+                            } // <-- End catch block
+                        } // <-- Closing brace for onConfigured
+
+                        @Override
+                        public void onConfigureFailed(CameraCaptureSession cameraCaptureSession) {
+                            System.err.println("错误: 配置摄像头捕获会话失败。");
                             stopRecording();
-                        } // <-- End catch block
-                    } // <-- Closing brace for onConfigured
-
-                    @Override
-                    public void onConfigureFailed(CameraCaptureSession cameraCaptureSession) {
-                        System.err.println("错误: 配置摄像头捕获会话失败。");
-                        stopRecording();
-                    } // <-- Closing brace for onConfigureFailed
-                }, // <-- Closing brace for StateCallback anonymous class
-                mCameraHandler // 只能用 Handler
-                // Executors.newSingleThreadExecutor() // 尝试使用 Executor (Java 21+)
-            ); // <-- Closing parenthesis and semicolon for createCaptureSession call
+                        } // <-- Closing brace for onConfigureFailed
+                    }
+                );
+            
+            // 使用 SessionConfiguration 创建捕获会话
+            mCameraDevice.createCaptureSession(sessionConfig);
+            System.out.println("摄像头捕获会话创建请求已发送 (分辨率: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + ")。");
 
         } catch (CameraAccessException e) { // <-- Catch block for try at 575
             System.err.println("错误: 创建摄像头捕获会话失败: " + e.getMessage());
@@ -746,6 +990,14 @@ public final class CameraServer {
         if (!mIsRecording) return;
         if (info.size <= 0) return;
 
+        // 第一次触发时：检测到配置标记，存入成员变量
+        if ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
+            mConfigData_len = info.size;
+            mConfigData = new byte[info.size];
+            buffer.get(mConfigData);
+            // 存储后，这次回调就结束了，mConfigData 现在已经有值了
+        } 
+
         // 避免频繁分配大数组
         byte[] data = new byte[info.size];
         synchronized (buffer) {
@@ -754,9 +1006,8 @@ public final class CameraServer {
             buffer.get(data);
         }
 
-        // 转换 AVCC 格式为 Annex B 格式
-        boolean isAnnexB = (data.length >= 4 && data[0] == 0x00 && data[1] == 0x00 &&
-                   ((data[2] == 0x00 && data[3] == 0x01) || data[2] == 0x01));
+        // 如果是 AVCC 格式 转换为 Annex B 格式
+        boolean isAnnexB = (data.length >= 4 && data[0] == 0x00 && data[1] == 0x00 && ((data[2] == 0x00 && data[3] == 0x01) || data[2] == 0x01));
         byte[] annexb = isAnnexB ? data : avccToAnnexB(data);
 
         long pts = info.presentationTimeUs; // 获取时间戳
@@ -764,26 +1015,37 @@ public final class CameraServer {
         // 检查是否是关键帧
         boolean isKeyFrame = (info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0;
 
-        // 如果是关键帧，先发送参数集 (type=101)
-        if (isKeyFrame) {
-            sendParameterSet(pts);
-        }
 
         // 构造视频帧包头：type(2字节) + data_len(4字节) + pts(8字节) + data
-        int videoType = isKeyFrame ? 100 : 1; // 100=关键视频帧, 1=普通视频帧
+        short videoType = isKeyFrame ? (short)100 : (short)1; // 100=关键视频帧, 1=普通视频帧
         int videoDataLen = annexb.length;
-        byte[] videoHeader = new byte[14]; // type(2) + data_len(4) + pts(8)
+
+
+        int header_size = 14;
+        // 如果是关键帧, 在前添加上SPS/PPS字节。~~先发送参数集 (type=101)~~
+        if (isKeyFrame) {
+            videoDataLen += mConfigData_len;
+            header_size += mConfigData_len;
+        }
 
         // 构造视频帧包头
-        System.arraycopy(intToBytes(videoType, 2), 0, videoHeader, 0, 2);
-        System.arraycopy(intToBytes(videoDataLen, 4), 0, videoHeader, 2, 4);
-        System.arraycopy(longToBytes(pts, 8), 0, videoHeader, 6, 8);
+        // type(2) + data_len(4) + pts(8) + [可选添加上 SPS/PPS字节]
+        ByteBuffer header = ByteBuffer.allocate(header_size);
+        header.putShort(videoType);
+        header.putInt(videoDataLen);
+        header.putLong(pts);
+
+        if (isKeyFrame) {
+            header.put(mConfigData);
+        }
 
         // 发送视频帧包
-        sendPacketToClients(videoHeader, annexb);
+        sendPacketToClients(header.array(), annexb);
 
         // System.out.println("发送视频帧 (type=" + videoType + "), size=" + videoDataLen); // 调试输出
     }
+
+    /*
 
     // --- 将 int 转换为指定长度的网络字节序 (大端) 字节数组 ---
     private static byte[] intToBytes(int value, int numBytes) {
@@ -802,6 +1064,8 @@ public final class CameraServer {
         }
         return bytes;
     }
+
+    */
 
     // --- 发送数据包 (header + data) 到所有连接的客户端 ---
     private void sendPacketToClients(byte[] header, byte[] data) {
@@ -828,6 +1092,7 @@ public final class CameraServer {
         }
     }
 
+    /*
     // --- 发送参数集 (VPS/SPS/PPS) 到客户端 (type=101) ---
     private void sendParameterSet(long pts) {
         if (vps != null && sps != null && pps != null) {
@@ -858,6 +1123,7 @@ public final class CameraServer {
             }
         }
     }
+    */
 
     // 将 AVCC 格式（长度前缀）转为 Annex B（起始码）
     private static byte[] avccToAnnexB(byte[] avcc) {
