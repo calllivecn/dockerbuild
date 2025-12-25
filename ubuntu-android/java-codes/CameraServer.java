@@ -8,6 +8,7 @@ import android.hardware.camera2.CameraCaptureSession;
 import android.hardware.camera2.CameraCharacteristics;
 import android.hardware.camera2.CameraDevice;
 import android.hardware.camera2.CameraManager;
+import android.hardware.camera2.CameraMetadata;
 import android.hardware.camera2.CaptureRequest;
 import android.hardware.camera2.TotalCaptureResult; // 导入 TotalCaptureResult
 import android.hardware.camera2.params.StreamConfigurationMap;
@@ -612,7 +613,8 @@ public final class CameraServer {
                 ByteBuffer outputBuffer = codec.getOutputBuffer(index);
 
                 if (outputBuffer != null) {
-                    sendDataToClients(outputBuffer, info);
+                    // 调用处理方法，现在会正确处理复合数据包
+                    processOutputBuffer(outputBuffer, info);
                 }
                 codec.releaseOutputBuffer(index, false);
             }
@@ -1148,41 +1150,139 @@ public final class CameraServer {
         } // <-- End catch block
     } // <-- Closing brace for createCameraPreviewSession
 
-
-
-    // --- 将编码后的数据发送给所有连接的客户端 ---
-    private void sendDataToClients(ByteBuffer buffer, MediaCodec.BufferInfo info) {
+    private void processOutputBuffer(ByteBuffer buffer, MediaCodec.BufferInfo info) {
         if (!mIsRecording) return;
         if (info.size <= 0) return;
 
-        // 避免频繁分配大数组
+        // 检查是否是配置数据
+        // boolean isConfig = (info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0;
+
+        boolean isKeyFrame = (info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0;
+
+        // 普通帧数据
         byte[] data = new byte[info.size];
         synchronized (buffer) {
             buffer.position(info.offset);
-            buffer.limit(info.offset + info.size);
+            buffer.limit(info.size);
             buffer.get(data);
         }
-
         // 如果是 AVCC 格式 转换为 Annex B 格式
         boolean isAnnexB = (data.length >= 4 && data[0] == 0x00 && data[1] == 0x00 && ((data[2] == 0x00 && data[3] == 0x01) || data[2] == 0x01));
         byte[] annexb = isAnnexB ? data : avccToAnnexB(data);
 
         long pts = info.presentationTimeUs; // 获取时间戳
 
+        sendVideoFrame(annexb, pts, isKeyFrame);
+
+    }
+
+    /*
+    // 保留一下失败的方案函数
+    // --- 处理MediaCodec输出缓冲区，正确处理复合数据包 ---
+    private void processOutputBuffer(ByteBuffer buffer, MediaCodec.BufferInfo info) {
+        if (!mIsRecording) return;
+        if (info.size <= 0) return;
+
         // 检查是否是配置数据
         boolean isConfig = (info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0;
 
-        // 如果标志位含有 CONFIG，说明当前 buffer 含有配置信息
-        // 为了 MKV 的兼容性，我们采取"纯净化"策略
+        boolean isKeyFrame = (info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0;
+
+        // 关键逻辑：如果这是一个复合包（包含配置信息）
         if (isConfig) {
-            // 方案 B：最简单通用的方法——如果带了 CONFIG 标志，就把这整块数据只当做 Config 发送
-            // Python 收到后更新 extradata 但不 mux。
-            sendConfigData(annexb, pts);
+            // 方案：既然我们已经在 onOutputFormatChanged 拿到了 CSD 并发给了 Python，
+            // 这里的 Buffer 我们只想要它的图像部分。
+               
+            // 注意：在大多数硬编码器中，如果 Flags 含有 CONFIG，
+            // 那么这个 Buffer 的内容通常[仅仅]是配置信息，或者是 [配置+关键帧]。
+            
+            // 如果你的逻辑是：只要带 CONFIG 标志，就认为它是纯配置，直接丢弃图像部分
+            // 但最简单稳妥的做法是：
+            if (isKeyFrame) {
+                // 这是一个【配置+关键帧】复合包
+                // 我们通过查找最后一个起始码(H.26x)或 OBU 分隔符(AV1)来定位图像
+                int finalOffset = info.offset + mConfigData_len;
+                int finalSize = info.size - mConfigData_len;
+
+                // 避免频繁分配大数组
+
+                byte[] data = new byte[finalSize];
+                synchronized (buffer) {
+                    buffer.position(finalOffset);
+                    buffer.limit(finalSize);
+                    buffer.get(data);
+                }
+
+                // 如果是 AVCC 格式 转换为 Annex B 格式
+                boolean isAnnexB = (data.length >= 4 && data[0] == 0x00 && data[1] == 0x00 && ((data[2] == 0x00 && data[3] == 0x01) || data[2] == 0x01));
+                byte[] annexb = isAnnexB ? data : avccToAnnexB(data);
+
+                long pts = info.presentationTimeUs; // 获取时间戳
+
+                sendVideoFrame(annexb, pts, true);
+
+            } else {
+                // 这是一个【纯配置】包，直接不发送
+                System.out.println("这是一个【纯配置】包，直接不发送。");
+                return;
+            }
+
         } else {
-            // 正常的 Key 帧或 P 帧，直接发送并 mux
-            boolean isKeyFrame = (info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0;
+            // 普通帧数据
+            byte[] data = new byte[info.size];
+            synchronized (buffer) {
+                buffer.position(info.offset);
+                buffer.limit(info.size);
+                buffer.get(data);
+            }
+            // 如果是 AVCC 格式 转换为 Annex B 格式
+            boolean isAnnexB = (data.length >= 4 && data[0] == 0x00 && data[1] == 0x00 && ((data[2] == 0x00 && data[3] == 0x01) || data[2] == 0x01));
+            byte[] annexb = isAnnexB ? data : avccToAnnexB(data);
+
+            long pts = info.presentationTimeUs; // 获取时间戳
+
             sendVideoFrame(annexb, pts, isKeyFrame);
         }
+
+    }
+    */
+
+    // 查找第一个非配置NALU的索引（用于拆分复合包）
+    private int findFirstFrameAfterConfig(byte[] data) {
+        int pos = 0;
+        boolean foundConfig = false;
+        
+        while (pos < data.length - 4) {
+            if (data[pos] == 0x00 && data[pos+1] == 0x00 && 
+                ((data[pos+2] == 0x00 && data[pos+3] == 0x01) || data[pos+2] == 0x01)) {
+                
+                if (pos + 4 < data.length) {
+                    int naluType = data[pos+4] & 0x1F;
+                    // SPS=7, PPS=8, VPS=32 (H.265), AUD=9
+                    if (naluType == 7 || naluType == 8 || naluType == 32) {
+                        foundConfig = true;
+                        pos += 4; // 跳过起始码
+                        // 找到下一个起始码
+                        int naluStart = pos;
+                        pos += 1; // 跳过NALU头
+                        
+                        // 找到下一个NALU的起始码
+                        while (pos < data.length - 4) {
+                            if (data[pos] == 0x00 && data[pos+1] == 0x00 && 
+                                ((data[pos+2] == 0x00 && data[pos+3] == 0x01) || data[pos+2] == 0x01)) {
+                                // 找到下一个NALU，返回当前位置
+                                return pos;
+                            }
+                            pos++;
+                        }
+                    }
+                }
+            }
+            pos++;
+        }
+        
+        // 如果没有找到拆分点，返回0表示不需要拆分
+        return 0;
     }
 
     // 发送配置数据 (SPS/PPS)
@@ -1471,9 +1571,8 @@ public final class CameraServer {
         }
 
         System.out.println("[音频发送] 发送音频帧，大小: " + audioDataLen + " 字节，客户端数: " + mTcpClients.size());
-        // 将数据包放入TCP发送队列，由TCP发送线程处理
         try {
-            mTcpSendQueue.put(new TcpPacket(header, data));
+            mTcpSendQueue.put(new TcpPacket(header.array(), audioData));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
@@ -1511,6 +1610,3 @@ public final class CameraServer {
         }
     }
 }
-
-
-
