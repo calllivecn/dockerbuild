@@ -116,8 +116,6 @@ public final class CameraServer {
 
     private static boolean showHelp = false; // 添加 showHelp 标志
 
-    private byte[] vps = null, sps = null, pps = null;
-
     // TCP数据包类
     static class TcpPacket {
         public byte[] header;
@@ -629,41 +627,18 @@ public final class CameraServer {
 
             @Override
             public void onOutputFormatChanged(MediaCodec codec, MediaFormat format) {
-                // 输出实际的编码参数
                 System.out.println("=== MediaCodec onOutputFormatChanged 被调用 ===");
-                int actualWidth = 0, actualHeight = 0, actualFPS = 0;
-                if (format.containsKey("width")) {
-                    actualWidth = format.getInteger("width");
-                    actualHeight = format.getInteger("height");
-                    actualFPS = format.getInteger("frame-rate", FRAME_RATE);
-                    System.out.println("✓ MediaCodec 实际输出格式: " + actualWidth + "x" + actualHeight + " @ " + actualFPS + "fps");
-                    
-                    if (actualWidth != VIDEO_WIDTH || actualHeight != VIDEO_HEIGHT) {
-                        System.err.println("⚠️ 分辨率不匹配!");
-                        System.err.println("  配置: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT);
-                        System.err.println("  实际: " + actualWidth + "x" + actualHeight);
-                        System.err.println("  原因: 摄像头输出的分辨率可能不同");
-                    }
-                    if (actualFPS != FRAME_RATE) {
-                        System.err.println("⚠️ 帧率不匹配!");
-                        System.err.println("  配置: " + FRAME_RATE + " fps");
-                        System.err.println("  实际: " + actualFPS + " fps");
-                    }
-                } else {
-                    System.out.println("⚠ format 中没有 width/height 信息");
-                }
                 
-                if (format.containsKey("csd-0")) vps = getBytesFromBuffer(format.getByteBuffer("csd-0"));
-                if (format.containsKey("csd-1")) sps = getBytesFromBuffer(format.getByteBuffer("csd-1"));
-                if (format.containsKey("csd-2")) pps = getBytesFromBuffer(format.getByteBuffer("csd-2"));
-                System.out.println("保存参数集: vps=" + (vps != null) + ", sps=" + (sps != null) + ", pps=" + (pps != null));
-            }
-
-            private static byte[] getBytesFromBuffer(ByteBuffer buffer) {
-                byte[] bytes = new byte[buffer.remaining()];
-                buffer.get(bytes);
-                buffer.rewind();
-                return bytes;
+                // 使用官方API获取配置数据，兼容H.264/H.265
+                mConfigData = getFullCsd(format);
+                if (mConfigData != null) {
+                    mConfigData_len = mConfigData.length;
+                    System.out.println("✓ 从 onOutputFormatChanged 获取配置数据，大小: " + mConfigData_len);
+                    // 发送配置数据包 (type=101)
+                    sendConfigData(mConfigData, 0); // 配置数据的时间戳通常为0
+                } else {
+                    System.err.println("❌ 从 onOutputFormatChanged 未能获取配置数据");
+                }
             }
         }, mEncoderHandler); // <--- 用编码线程的 Handler
 
@@ -671,6 +646,45 @@ public final class CameraServer {
         // 启动 MediaCodec
         mMediaCodec.start();
         System.out.println("MediaCodec 已启动。");
+    }
+
+    // --- 获取完整的配置数据 (SPS/PPS for H.264, VPS/SPS/PPS for H.265) ---
+    private byte[] getFullCsd(MediaFormat format) {
+        // 使用官方API获取配置数据，兼容H.264/H.265
+        ByteBuffer csd0 = format.getByteBuffer("csd-0"); // SPS (H.264) 或 VPS (H.265)
+        ByteBuffer csd1 = format.getByteBuffer("csd-1"); // PPS (H.264) 或 SPS (H.265)
+        ByteBuffer csd2 = format.getByteBuffer("csd-2"); // H.265 的 PPS
+        
+        if (csd0 == null) {
+            System.err.println("❌ csd-0 为 null");
+            return null;
+        }
+        
+        // 计算总长度
+        int totalLen = 0;
+        if (csd0 != null) totalLen += csd0.remaining();
+        if (csd1 != null) totalLen += csd1.remaining();
+        if (csd2 != null) totalLen += csd2.remaining();
+        
+        byte[] fullCsd = new byte[totalLen];
+        int offset = 0;
+        
+        if (csd0 != null) {
+            csd0.rewind();
+            csd0.get(fullCsd, offset, csd0.remaining());
+            offset += csd0.remaining();
+        }
+        if (csd1 != null) {
+            csd1.rewind();
+            csd1.get(fullCsd, offset, csd1.remaining());
+            offset += csd1.remaining();
+        }
+        if (csd2 != null) {
+            csd2.rewind();
+            csd2.get(fullCsd, offset, csd2.remaining());
+        }
+        
+        return fullCsd;
     }
 
     // --- 检查摄像头支持的分辨率，如需要则自动调整 ---
@@ -1141,14 +1155,6 @@ public final class CameraServer {
         if (!mIsRecording) return;
         if (info.size <= 0) return;
 
-        // 第一次触发时：检测到配置标记，存入成员变量
-        if ((info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0) {
-            mConfigData_len = info.size;
-            mConfigData = new byte[info.size];
-            buffer.get(mConfigData);
-            // 存储后，这次回调就结束了，mConfigData 现在已经有值了
-        } 
-
         // 避免频繁分配大数组
         byte[] data = new byte[info.size];
         synchronized (buffer) {
@@ -1163,112 +1169,67 @@ public final class CameraServer {
 
         long pts = info.presentationTimeUs; // 获取时间戳
 
-        // 检查是否是关键帧 处理关键帧标志
-        // 只有当包含 KEY_FRAME 且当前 packet 确实是图像数据时才设为 True
-        boolean isKeyFrame = false;
-        if((info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0) {
-            isKeyFrame = true;
+        // 检查是否是配置数据
+        boolean isConfig = (info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0;
+
+        // 如果标志位含有 CONFIG，说明当前 buffer 含有配置信息
+        // 为了 MKV 的兼容性，我们采取"纯净化"策略
+        if (isConfig) {
+            // 方案 B：最简单通用的方法——如果带了 CONFIG 标志，就把这整块数据只当做 Config 发送
+            // Python 收到后更新 extradata 但不 mux。
+            sendConfigData(annexb, pts);
+        } else {
+            // 正常的 Key 帧或 P 帧，直接发送并 mux
+            boolean isKeyFrame = (info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0;
+            sendVideoFrame(annexb, pts, isKeyFrame);
+        }
+    }
+
+    // 发送配置数据 (SPS/PPS)
+    private void sendConfigData(byte[] config, long pts) {
+        // 构造配置数据包头：type(2字节) + data_len(4字节) + pts(8字节) + data
+        short configType = (short)101; // 101=配置数据
+        int configDataLen = config.length;
+
+        // 构造配置数据包头
+        ByteBuffer header = ByteBuffer.allocate(14);
+        header.order(ByteOrder.BIG_ENDIAN); // 显式指定网络字节序
+        header.putShort(configType);
+        header.putInt(configDataLen);
+        header.putLong(pts);
+
+        // 发送配置数据包 - 放入TCP发送队列
+        try {
+            mTcpSendQueue.put(new TcpPacket(header.array(), config));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
 
+        System.out.println("发送配置数据 (type=101), size=" + configDataLen); // 调试输出
+    }
 
+    // 发送视频帧数据
+    private void sendVideoFrame(byte[] frame, long pts, boolean isKeyFrame) {
         // 构造视频帧包头：type(2字节) + data_len(4字节) + pts(8字节) + data
         short videoType = isKeyFrame ? (short)100 : (short)1; // 100=关键视频帧, 1=普通视频帧
-        int videoDataLen = annexb.length;
-
-
-        int header_size = 14;
-        // 如果是关键帧, 在前添加上SPS/PPS字节。~~先发送参数集 (type=101)~~
-        if (isKeyFrame) {
-            videoDataLen += mConfigData_len;
-            header_size += mConfigData_len;
-        }
+        int videoDataLen = frame.length;
 
         // 构造视频帧包头
-        // type(2) + data_len(4) + pts(8) + [可选添加上 SPS/PPS字节]
-        ByteBuffer header = ByteBuffer.allocate(header_size);
+        ByteBuffer header = ByteBuffer.allocate(14);
         header.order(ByteOrder.BIG_ENDIAN); // 显式指定网络字节序
         header.putShort(videoType);
         header.putInt(videoDataLen);
         header.putLong(pts);
 
-        if (isKeyFrame) {
-            header.put(mConfigData);
-        }
-
         // 发送视频帧包 - 放入TCP发送队列
         try {
-            mTcpSendQueue.put(new TcpPacket(header.array(), annexb));
+            mTcpSendQueue.put(new TcpPacket(header.array(), frame));
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
 
-        // System.out.println("发送视频帧 (type=" + videoType + "), size=" + videoDataLen); // 调试输出
+        System.out.println("发送视频帧 (type=" + videoType + "), size=" + videoDataLen); // 调试输出
     }
-
-    /*
-
-    // --- 将 int 转换为指定长度的网络字节序 (大端) 字节数组 ---
-    private static byte[] intToBytes(int value, int numBytes) {
-        byte[] bytes = new byte[numBytes];
-        for (int i = 0; i < numBytes; i++) {
-            bytes[i] = (byte) ((value >> ((numBytes - 1 - i) * 8)) & 0xFF);
-        }
-        return bytes;
-    }
-
-    // --- 将 long 转换为指定长度的网络字节序 (大端) 字节数组 ---
-    private static byte[] longToBytes(long value, int numBytes) {
-        byte[] bytes = new byte[numBytes];
-        for (int i = 0; i < numBytes; i++) {
-            bytes[i] = (byte) ((value >> ((numBytes - 1 - i) * 8)) & 0xFF);
-        }
-        return bytes;
-    }
-
-    */
-
-    // --- 发送数据包 (header + data) 到所有连接的客户端 ---
-    private void sendPacketToClients(byte[] header, byte[] data) {
-        // 将数据包放入TCP发送队列，由TCP发送线程处理
-        try {
-            mTcpSendQueue.put(new TcpPacket(header, data));
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-    }
-
-    /*
-    // --- 发送参数集 (VPS/SPS/PPS) 到客户端 (type=101) ---
-    private void sendParameterSet(long pts) {
-        if (vps != null && sps != null && pps != null) {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            try {
-                baos.write(vps);
-                baos.write(sps);
-                baos.write(pps);
-                byte[] paramData = baos.toByteArray();
-
-                int paramType = 101; // 101 表示参数集 (VPS/SPS/PPS)
-                int paramDataLen = paramData.length;
-                byte[] paramHeader = new byte[14]; // type(2) + data_len(4) + pts(8)
-
-                // 构造参数集包头
-                System.arraycopy(intToBytes(paramType, 2), 0, paramHeader, 0, 2);
-                System.arraycopy(intToBytes(paramDataLen, 4), 0, paramHeader, 2, 4);
-                // 参数集的 PTS 可以使用关键帧的 PTS，或者设置为 0
-                System.arraycopy(longToBytes(pts, 8), 0, paramHeader, 6, 8);
-
-                // 发送参数集包
-                sendPacketToClients(paramHeader, paramData);
-
-                System.out.println("发送参数集 (type=101), size=" + paramDataLen); // 调试输出
-
-            } catch (IOException e) {
-                System.err.println("构造参数集数据时发生错误: " + e.getMessage());
-            }
-        }
-    }
-    */
 
     // 将 AVCC 格式（长度前缀）转为 Annex B（起始码）
     private static byte[] avccToAnnexB(byte[] avcc) {
@@ -1510,7 +1471,12 @@ public final class CameraServer {
         }
 
         System.out.println("[音频发送] 发送音频帧，大小: " + audioDataLen + " 字节，客户端数: " + mTcpClients.size());
-        sendPacketToClients(header.array(), audioData);
+        // 将数据包放入TCP发送队列，由TCP发送线程处理
+        try {
+            mTcpSendQueue.put(new TcpPacket(header, data));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     // --- 停止音频编码器 ---
