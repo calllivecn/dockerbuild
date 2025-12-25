@@ -1387,7 +1387,7 @@ public final class CameraServer {
                 @Override
                 public void onInputBufferAvailable(MediaCodec codec, int index) {
                     inputCallCount++;
-                    System.out.println("[DEBUG] onInputBufferAvailable 被调用, count=" + inputCallCount);
+                    // System.out.println("[DEBUG] onInputBufferAvailable 被调用, count=" + inputCallCount);
                     // 异步模式下，通过回调获得输入缓冲区
                     ByteBuffer inputBuffer = codec.getInputBuffer(index);
                     if (inputBuffer != null) {
@@ -1404,13 +1404,13 @@ public final class CameraServer {
                             inputBuffer.put(audioData);
                             long presentationTimeUs = System.nanoTime() / 1000;
                             codec.queueInputBuffer(index, 0, audioData.length, presentationTimeUs, 0);
-                            if (inputCallCount % 50 == 0) {
-                                System.out.println("[音频编码器] 输入缓冲区可用，已填充 " + audioData.length + " 字节");
-                            }
-                        } else {
-                            if (inputCallCount % 50 == 0) {
-                                System.out.println("[音频编码器] 输入缓冲区可用，但队列为空（等待超时）！");
-                            }
+                            // if (inputCallCount % 50 == 0) {
+                                // System.out.println("[音频编码器] 输入缓冲区可用，已填充 " + audioData.length + " 字节");
+                            // }
+                        // } else {
+                            // if (inputCallCount % 50 == 0) {
+                                // System.out.println("[音频编码器] 输入缓冲区可用，但队列为空（等待超时）！");
+                            // }
                         }
                     }
                 }
@@ -1418,14 +1418,14 @@ public final class CameraServer {
                 @Override
                 public void onOutputBufferAvailable(MediaCodec codec, int index, MediaCodec.BufferInfo info) {
                     outputCallCount++;
-                    System.out.println("[DEBUG] onOutputBufferAvailable 被调用, count=" + outputCallCount + ", size=" + info.size);
+                    // System.out.println("[DEBUG] onOutputBufferAvailable 被调用, count=" + outputCallCount + ", size=" + info.size);
                     // 异步模式下，直接收到输出缓冲区
                     if (info.size > 0) {
                         ByteBuffer outputBuffer = codec.getOutputBuffer(index);
                         if (outputBuffer != null) {
-                            if (outputCallCount % 50 == 0) {
-                                System.out.println("[音频编码器] 输出缓冲区可用，大小 " + info.size + " 字节，客户端数: " + mTcpClients.size());
-                            }
+                            // if (outputCallCount % 50 == 0) {
+                                // System.out.println("[音频编码器] 输出缓冲区可用，大小 " + info.size + " 字节，客户端数: " + mTcpClients.size());
+                            // }
                             sendAudioDataToClients(outputBuffer, info);
                         }
                     }
@@ -1489,9 +1489,9 @@ public final class CameraServer {
                     int readSize = mAudioRecord.read(audioBuffer, 0, audioBuffer.length);
                     if (readSize > 0) {
                         readCount++;
-                        if (readCount % 50 == 0) { // 每50次打一条日志
-                            System.out.println("[音频] 读取PCM数据: " + readSize + " 字节，队列大小: " + mAudioDataQueue.size());
-                        }
+                        // if (readCount % 50 == 0) { // 每50次打一条日志
+                            // System.out.println("[音频] 读取PCM数据: " + readSize + " 字节，队列大小: " + mAudioDataQueue.size());
+                        // }
                         // 复制一份数据放入队列
                         byte[] audioData = new byte[readSize];
                         System.arraycopy(audioBuffer, 0, audioData, 0, readSize);
@@ -1570,7 +1570,7 @@ public final class CameraServer {
             header.put(mAudioConfigData);
         }
 
-        System.out.println("[音频发送] 发送音频帧，大小: " + audioDataLen + " 字节，客户端数: " + mTcpClients.size());
+        // System.out.println("[音频发送] 发送音频帧，大小: " + audioDataLen + " 字节，客户端数: " + mTcpClients.size());
         try {
             mTcpSendQueue.put(new TcpPacket(header.array(), audioData));
         } catch (InterruptedException e) {
