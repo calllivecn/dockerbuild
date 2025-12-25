@@ -1328,7 +1328,7 @@ public final class CameraServer {
             Thread.currentThread().interrupt();
         }
 
-        System.out.println("发送视频帧 (type=" + videoType + "), size=" + videoDataLen); // 调试输出
+        // System.out.println("发送视频帧 (type=" + videoType + "), size=" + videoDataLen); // 调试输出
     }
 
     // 将 AVCC 格式（长度前缀）转为 Annex B（起始码）
