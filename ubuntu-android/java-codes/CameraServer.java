@@ -110,9 +110,24 @@ public final class CameraServer {
     private int mAudioConfigData_len = 0;
     private BlockingQueue<byte[]> mAudioDataQueue = new LinkedBlockingQueue<>(300); // 改用 BlockingQueue
 
+    // --- TCP发送队列 ---
+    private BlockingQueue<TcpPacket> mTcpSendQueue = new LinkedBlockingQueue<>(1000);
+    private Thread mTcpSendThread;
+
     private static boolean showHelp = false; // 添加 showHelp 标志
 
     private byte[] vps = null, sps = null, pps = null;
+
+    // TCP数据包类
+    static class TcpPacket {
+        public byte[] header;
+        public byte[] data;
+        
+        public TcpPacket(byte[] header, byte[] data) {
+            this.header = header;
+            this.data = data;
+        }
+    }
 
     public static void main(String[] args) {
 
@@ -305,6 +320,9 @@ public final class CameraServer {
             mServerSocket = new ServerSocket(TCP_PORT, 50, java.net.InetAddress.getByName(TCP_HOST));
             System.out.println("TCP 服务器已启动，监听 " + TCP_HOST + ":" + TCP_PORT);
 
+            // 启动TCP发送线程
+            startTcpSendThread();
+
             // 主线程直接处理客户端连接
             while (!Thread.currentThread().isInterrupted()) {
                 try {
@@ -338,9 +356,59 @@ public final class CameraServer {
         }
     }
 
+    // --- 启动TCP发送线程 ---
+    private void startTcpSendThread() {
+        mTcpSendThread = new Thread(() -> {
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    // 从队列中获取数据包
+                    TcpPacket packet = mTcpSendQueue.take();
+                    
+                    // 遍历所有客户端发送数据
+                    for (Socket client : mTcpClients) {
+                        try {
+                            OutputStream out = client.getOutputStream();
+                            out.write(packet.header);
+                            out.write(packet.data);
+                            out.flush(); // 发送完一个包后立即 flush
+                        } catch (IOException e) {
+                            System.err.println("发送数据到 TCP 客户端失败，断开连接: " + e.getMessage());
+                            try {
+                                client.close();
+                            } catch (IOException closeException) {
+                                System.err.println("关闭 TCP 客户端连接错误: " + closeException.getMessage());
+                            }
+                            mTcpClients.remove(client);
+                            System.out.println("客户端断开连接。当前连接数: " + mTcpClients.size());
+                            if (mTcpClients.isEmpty()) {
+                                System.out.println("所有客户端已断开连接，停止录制...");
+                                stopRecording();
+                            }
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }, "TcpSendThread");
+        mTcpSendThread.start();
+    }
+
     // --- 停止网络服务器 ---
     public void stopServer() {
         System.out.println("正在停止网络服务器...");
+
+        // 关闭TCP发送线程
+        if (mTcpSendThread != null && mTcpSendThread.isAlive()) {
+            mTcpSendThread.interrupt();
+            try {
+                mTcpSendThread.join();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            mTcpSendThread = null;
+        }
 
         // 关闭所有 TCP 客户端连接
         for (Socket client : mTcpClients) {
@@ -1095,8 +1163,12 @@ public final class CameraServer {
 
         long pts = info.presentationTimeUs; // 获取时间戳
 
-        // 检查是否是关键帧
-        boolean isKeyFrame = (info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0;
+        // 检查是否是关键帧 处理关键帧标志
+        // 只有当包含 KEY_FRAME 且当前 packet 确实是图像数据时才设为 True
+        boolean isKeyFrame = false;
+        if((info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0) {
+            isKeyFrame = true;
+        }
 
 
         // 构造视频帧包头：type(2字节) + data_len(4字节) + pts(8字节) + data
@@ -1123,8 +1195,12 @@ public final class CameraServer {
             header.put(mConfigData);
         }
 
-        // 发送视频帧包
-        sendPacketToClients(header.array(), annexb);
+        // 发送视频帧包 - 放入TCP发送队列
+        try {
+            mTcpSendQueue.put(new TcpPacket(header.array(), annexb));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
 
         // System.out.println("发送视频帧 (type=" + videoType + "), size=" + videoDataLen); // 调试输出
     }
@@ -1153,26 +1229,11 @@ public final class CameraServer {
 
     // --- 发送数据包 (header + data) 到所有连接的客户端 ---
     private void sendPacketToClients(byte[] header, byte[] data) {
-        for (Socket client : mTcpClients) {
-            try {
-                OutputStream out = client.getOutputStream();
-                out.write(header);
-                out.write(data);
-                out.flush(); // 发送完一个包后立即 flush
-            } catch (IOException e) {
-                System.err.println("发送数据到 TCP 客户端失败，断开连接: " + e.getMessage());
-                try {
-                    client.close();
-                } catch (IOException closeException) {
-                    System.err.println("关闭 TCP 客户端连接错误: " + closeException.getMessage());
-                }
-                mTcpClients.remove(client);
-                System.out.println("客户端断开连接。当前连接数: " + mTcpClients.size());
-                if (mTcpClients.isEmpty()) {
-                    System.out.println("所有客户端已断开连接，停止录制...");
-                    stopRecording();
-                }
-            }
+        // 将数据包放入TCP发送队列，由TCP发送线程处理
+        try {
+            mTcpSendQueue.put(new TcpPacket(header, data));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -1484,3 +1545,6 @@ public final class CameraServer {
         }
     }
 }
+
+
+
