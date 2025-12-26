@@ -95,7 +95,7 @@ public final class CameraServer {
     private Short VideoKeyframe=100;
     private Short VideoNormal=1;
     private Short VideoConfig=101;
-    private Short Audiodata=2;
+    private Short AudioData=2;
     private Short AudioConfig=201;
 
     // --- MediaCodec 相关 (视频) ---
@@ -335,7 +335,13 @@ public final class CameraServer {
                     Socket client = mServerSocket.accept();
                     System.out.println("新的 TCP 客户端连接: " + client.getRemoteSocketAddress());
                     boolean wasEmpty = mTcpClients.isEmpty();
+                    // 发送 extradata 信息
+                    if(!wasEmpty){
+                        sendAudioFrame(mAudioConfigData, 0, AudioConfig);
+                    }
+
                     mTcpClients.add(client);
+
                     if (wasEmpty) {
                         System.out.println("检测到第一个客户端连接，开始录制...");
                         try {
@@ -641,16 +647,18 @@ public final class CameraServer {
 
                 System.out.println("=== MediaCodec onOutputFormatChanged 被调用 ===");
                 
+                /*
                 // 使用官方API获取配置数据，兼容H.264/H.265
                 mConfigData = getFullCsd(format);
                 if (mConfigData != null) {
                     mConfigData_len = mConfigData.length;
                     System.out.println("✓ 从 onOutputFormatChanged 获取配置数据，大小: " + mConfigData_len);
                     // 发送配置数据包 (type=101)
-                    // sendConfigData(mConfigData); // 配置数据的时间戳通常为0
+                    // sendvideoConfigData(mConfigData); // 配置数据的时间戳通常为0
                 } else {
                     System.err.println("❌ 从 onOutputFormatChanged 未能获取配置数据");
                 }
+                */
             }
         }, mEncoderHandler); // <--- 用编码线程的 Handler
 
@@ -659,7 +667,7 @@ public final class CameraServer {
         mMediaCodec.start();
         System.out.println("MediaCodec 已启动。");
     }
-
+    /*
     // --- 获取完整的配置数据 (SPS/PPS for H.264, VPS/SPS/PPS for H.265) ---
     private byte[] getFullCsd(MediaFormat format) {
         // 使用官方API获取配置数据，兼容H.264/H.265
@@ -698,6 +706,7 @@ public final class CameraServer {
         
         return fullCsd;
     }
+    */
 
     // --- 检查摄像头支持的分辨率，如需要则自动调整 ---
     private void checkCameraResolution() throws CameraAccessException {
@@ -1057,8 +1066,6 @@ public final class CameraServer {
             }
 
 
-
-
             // 使用新版API（Executor）创建会话，消除废弃警告
             // 关键：使用 OutputConfiguration 指定摄像头输出的分辨率
             android.hardware.camera2.params.OutputConfiguration outputConfig = 
@@ -1138,7 +1145,7 @@ public final class CameraServer {
 
         // 检查是否是配置数据
         boolean isConfig = (info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0;
-        if(isConfig && isKeyFrame) System.out.println("// 可能同时是codec_config 和 keyframe: true");
+        if(isConfig && isKeyFrame) System.out.println("// 可能同时是codec_config 和 keyframe: true。 在安卓上这种情况一般不会出现");
 
         if (isConfig){
             System.out.print("从 onOutputBufferAvailable() 中拿到的 BUFFER_FLAG_CODEC_CONFIG: ");
@@ -1149,18 +1156,20 @@ public final class CameraServer {
                 buffer.get(data);
             }
 
+            /* 
+            总是 Annex-B 格式
             // debug 输出
             boolean isAnnexB = (data.length >= 4 && data[0] == 0x00 && data[1] == 0x00 && ((data[2] == 0x00 && data[3] == 0x01) || data[2] == 0x01));
             byte[] annexb;
             if(isAnnexB){
-                // 总是 Annex-B 格式
                 // System.out.println("当前buffer帧是 AnnexB");
             }else{
                 // System.out.println("当前帧是 AVCC");
                 annexb = avccToAnnexB(data);
             }
+            */
             
-            sendConfigData(data);
+            sendVideoConfigData(data);
 
             return;
         }
@@ -1172,7 +1181,10 @@ public final class CameraServer {
             buffer.limit(info.size);
             buffer.get(data);
         }
-        // 如果是 AVCC 格式 转换为 Annex B 格式
+
+        /*
+        // 当前安卓编译器输出是会 Annex-B
+        // 如果是 AVCC 格式 转换为 Annex-B 格式
         boolean isAnnexB = (data.length >= 4 && data[0] == 0x00 && data[1] == 0x00 && ((data[2] == 0x00 && data[3] == 0x01) || data[2] == 0x01));
         // byte[] annexb = isAnnexB ? data : avccToAnnexB(data);
         byte[] annexb;
@@ -1181,17 +1193,19 @@ public final class CameraServer {
             annexb = data;
         }else{
             System.out.println("当前帧是 AVCC");
-            annexb = avccToAnnexB(data);
+            // annexb = avccToAnnexB(data);
         }
+        */
 
         long pts = info.presentationTimeUs; // 获取时间戳
 
-        sendVideoFrame(annexb, pts, isKeyFrame);
+        // sendVideoFrame(annexb, pts, isKeyFrame);
+        sendVideoFrame(data, pts, isKeyFrame);
 
     }
 
     // 发送配置数据 H.264(SPS/PPS) H.265(VPS/SPS/PPS)
-    private void sendConfigData(byte[] config) {
+    private void sendVideoConfigData(byte[] config) {
         // 构造配置数据包头：type(2字节) + data_len(4字节) + pts(8字节) + data
         short configType = (short)101; // 101=配置数据
         int configDataLen = config.length;
@@ -1236,6 +1250,7 @@ public final class CameraServer {
         // System.out.println("发送视频帧 (type=" + videoType + "), size=" + videoDataLen); // 调试输出
     }
 
+    /*
     // 将 AVCC 格式（长度前缀）转为 Annex B（起始码）
     private static byte[] avccToAnnexB(byte[] avcc) {
         ByteBuffer buf = ByteBuffer.wrap(avcc);
@@ -1258,6 +1273,7 @@ public final class CameraServer {
         }
         return out.toByteArray();
     }
+    */
 
     // ==================== 音频处理方法 ====================
 
@@ -1440,6 +1456,7 @@ public final class CameraServer {
             buffer.position(info.offset);
             buffer.get(mAudioConfigData);
             System.out.println("[音频] 已缓存音频配置数据，大小: " + mAudioConfigData_len);
+            sendAudioFrame(mAudioConfigData, 0, AudioConfig);
             return;  // 配置数据本身不发送，后面会在每个音频帧中附加
         }
 
@@ -1450,33 +1467,8 @@ public final class CameraServer {
 
         long pts = info.presentationTimeUs;
 
-        // 构造音频帧包头：type(2字节) + data_len(4字节) + pts(8字节) + 音频数据
-        // type=2 表示音频帧
-        short audioType = AudioData;
-        int audioDataLen = audioData.length;
-        
-        // 确保新连接的客户端也能收到完整的AAC流
-
-        int headerSize = 14;
-        
-        // 显式指定网络字节序（大端）
-        ByteBuffer header = ByteBuffer.allocate(headerSize);
-        header.order(ByteOrder.BIG_ENDIAN);
-        header.putShort(audioType);
-        header.putInt(audioDataLen);
-        header.putLong(pts);
-        
-        // 每个新连接的TCP client 音频帧都附加配置数据，这样新客户端也能接收到完整的AAC流信息
-        if (hasConfigData) {
-            header.put(mAudioConfigData);
-        }
-
         // System.out.println("[音频发送] 发送音频帧，大小: " + audioDataLen + " 字节，客户端数: " + mTcpClients.size());
-        try {
-            mTcpSendQueue.put(new TcpPacket(header.array(), audioData));
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        sendAudioFrame(audioData, pts, AudioData);
     }
 
     // --- 停止音频编码器 ---
@@ -1511,9 +1503,9 @@ public final class CameraServer {
         }
     }
     // 发送视频帧数据
-    private void sendAudioFrame(byte[] frame, long pts, boolean isConfig) {
+    private void sendAudioFrame(byte[] frame, long pts, short audioType) {
         // 构造视频帧包头：type(2字节) + data_len(4字节) + pts(8字节) + data
-        short audioType = isConfig ? AudioConfig : AudioData; // 2=声音数据, 201=配置extradata 
+        // audioType 2=声音数据, 201=配置extradata 
         int audioDataLen = frame.length;
 
         // 构造视频帧包头
