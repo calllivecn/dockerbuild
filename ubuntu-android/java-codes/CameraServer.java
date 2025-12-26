@@ -91,6 +91,13 @@ public final class CameraServer {
     private Semaphore mCameraOpenCloseLock = new Semaphore(1); // 防止相机并发访问
     private Executor mExecutor; // 用于 SessionConfiguration
 
+    // TCP packet type
+    private Short VideoKeyframe=100;
+    private Short VideoNormal=1;
+    private Short VideoConfig=101;
+    private Short Audiodata=2;
+    private Short AudioConfig=201;
+
     // --- MediaCodec 相关 (视频) ---
     private MediaCodec mMediaCodec;
     private Surface mEncoderInputSurface; // 连接到MediaCodec的输入Surface
@@ -629,6 +636,9 @@ public final class CameraServer {
 
             @Override
             public void onOutputFormatChanged(MediaCodec codec, MediaFormat format) {
+
+                // 我去这里拿到的 可能不是最新的编码器配置 还是需要使用： onOutputBufferAvailable() CODEC_CONFIG 标记中拿到的才算。
+
                 System.out.println("=== MediaCodec onOutputFormatChanged 被调用 ===");
                 
                 // 使用官方API获取配置数据，兼容H.264/H.265
@@ -637,7 +647,7 @@ public final class CameraServer {
                     mConfigData_len = mConfigData.length;
                     System.out.println("✓ 从 onOutputFormatChanged 获取配置数据，大小: " + mConfigData_len);
                     // 发送配置数据包 (type=101)
-                    sendConfigData(mConfigData, 0); // 配置数据的时间戳通常为0
+                    // sendConfigData(mConfigData); // 配置数据的时间戳通常为0
                 } else {
                     System.err.println("❌ 从 onOutputFormatChanged 未能获取配置数据");
                 }
@@ -886,35 +896,6 @@ public final class CameraServer {
             Size[] supportedSizes = selectedMap.getOutputSizes(MediaCodec.class);
             System.out.println("supportedSizes: " + (supportedSizes == null ? "null" : "长度=" + supportedSizes.length));
             
-            if (supportedSizes != null) {
-                System.out.println("摄像头 " + selectedCameraId + " 通过 MediaCodec.class 支持的分辨率:");
-                for (Size s : supportedSizes) {
-                    System.out.println("  - " + s.getWidth() + "x" + s.getHeight());
-                }
-                
-                // 关键诊断：检查所有输出格式的支持的大小
-                System.out.println("\n摄像头 " + selectedCameraId + " 的所有输出格式及其支持的分辨率:");
-                int[] outputFormats = selectedMap.getOutputFormats();
-                if (outputFormats != null) {
-                    for (int format : outputFormats) {
-                        Size[] sizes = selectedMap.getOutputSizes(format);
-                        System.out.println("  格式 0x" + Integer.toHexString(format) + " 支持 " + (sizes != null ? sizes.length : 0) + " 种分辨率");
-                        if (sizes != null && sizes.length > 0) {
-                            // 只显示前5个和最大的
-                            int maxSize = Math.min(5, sizes.length);
-                            for (int i = 0; i < maxSize; i++) {
-                                System.out.println("    [" + i + "] " + sizes[i].getWidth() + "x" + sizes[i].getHeight());
-                            }
-                            if (sizes.length > 5) {
-                                System.out.println("    ... (更多 " + (sizes.length - 5) + " 个)");
-                            }
-                            // 显示最大的
-                            Size maxRes = sizes[sizes.length - 1];
-                            System.out.println("    最大: " + maxRes.getWidth() + "x" + maxRes.getHeight());
-                        }
-                    }
-                }
-                
                 boolean currentResolutionSupported = false;
                 for (Size s : supportedSizes) {
                     if (s.getWidth() == VIDEO_WIDTH && s.getHeight() == VIDEO_HEIGHT) {
@@ -923,9 +904,8 @@ public final class CameraServer {
                     }
                 }
                 
-                System.out.println("\n目标配置分辨率: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + 
-                    (currentResolutionSupported ? " (✓ 摄像头支持)" : " (❌ 摄像头不支持，会被降低)"));
-            }
+            System.out.println("\n目标配置分辨率: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + 
+                (currentResolutionSupported ? " (✓ 摄像头支持)" : " (❌ 摄像头不支持，会被降低)"));
         }
 
         // 请求打开摄像头
@@ -1154,10 +1134,36 @@ public final class CameraServer {
         if (!mIsRecording) return;
         if (info.size <= 0) return;
 
-        // 检查是否是配置数据
-        // boolean isConfig = (info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0;
-
         boolean isKeyFrame = (info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0;
+
+        // 检查是否是配置数据
+        boolean isConfig = (info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0;
+        if(isConfig && isKeyFrame) System.out.println("// 可能同时是codec_config 和 keyframe: true");
+
+        if (isConfig){
+            System.out.print("从 onOutputBufferAvailable() 中拿到的 BUFFER_FLAG_CODEC_CONFIG: ");
+            byte[] data = new byte[info.size];
+            synchronized (buffer) {
+                buffer.position(info.offset);
+                buffer.limit(info.size);
+                buffer.get(data);
+            }
+
+            // debug 输出
+            boolean isAnnexB = (data.length >= 4 && data[0] == 0x00 && data[1] == 0x00 && ((data[2] == 0x00 && data[3] == 0x01) || data[2] == 0x01));
+            byte[] annexb;
+            if(isAnnexB){
+                // 总是 Annex-B 格式
+                // System.out.println("当前buffer帧是 AnnexB");
+            }else{
+                // System.out.println("当前帧是 AVCC");
+                annexb = avccToAnnexB(data);
+            }
+            
+            sendConfigData(data);
+
+            return;
+        }
 
         // 普通帧数据
         byte[] data = new byte[info.size];
@@ -1168,7 +1174,15 @@ public final class CameraServer {
         }
         // 如果是 AVCC 格式 转换为 Annex B 格式
         boolean isAnnexB = (data.length >= 4 && data[0] == 0x00 && data[1] == 0x00 && ((data[2] == 0x00 && data[3] == 0x01) || data[2] == 0x01));
-        byte[] annexb = isAnnexB ? data : avccToAnnexB(data);
+        // byte[] annexb = isAnnexB ? data : avccToAnnexB(data);
+        byte[] annexb;
+        if(isAnnexB){
+            System.out.println("当前buffer帧是 AnnexB");
+            annexb = data;
+        }else{
+            System.out.println("当前帧是 AVCC");
+            annexb = avccToAnnexB(data);
+        }
 
         long pts = info.presentationTimeUs; // 获取时间戳
 
@@ -1176,117 +1190,8 @@ public final class CameraServer {
 
     }
 
-    /*
-    // 保留一下失败的方案函数
-    // --- 处理MediaCodec输出缓冲区，正确处理复合数据包 ---
-    private void processOutputBuffer(ByteBuffer buffer, MediaCodec.BufferInfo info) {
-        if (!mIsRecording) return;
-        if (info.size <= 0) return;
-
-        // 检查是否是配置数据
-        boolean isConfig = (info.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0;
-
-        boolean isKeyFrame = (info.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0;
-
-        // 关键逻辑：如果这是一个复合包（包含配置信息）
-        if (isConfig) {
-            // 方案：既然我们已经在 onOutputFormatChanged 拿到了 CSD 并发给了 Python，
-            // 这里的 Buffer 我们只想要它的图像部分。
-               
-            // 注意：在大多数硬编码器中，如果 Flags 含有 CONFIG，
-            // 那么这个 Buffer 的内容通常[仅仅]是配置信息，或者是 [配置+关键帧]。
-            
-            // 如果你的逻辑是：只要带 CONFIG 标志，就认为它是纯配置，直接丢弃图像部分
-            // 但最简单稳妥的做法是：
-            if (isKeyFrame) {
-                // 这是一个【配置+关键帧】复合包
-                // 我们通过查找最后一个起始码(H.26x)或 OBU 分隔符(AV1)来定位图像
-                int finalOffset = info.offset + mConfigData_len;
-                int finalSize = info.size - mConfigData_len;
-
-                // 避免频繁分配大数组
-
-                byte[] data = new byte[finalSize];
-                synchronized (buffer) {
-                    buffer.position(finalOffset);
-                    buffer.limit(finalSize);
-                    buffer.get(data);
-                }
-
-                // 如果是 AVCC 格式 转换为 Annex B 格式
-                boolean isAnnexB = (data.length >= 4 && data[0] == 0x00 && data[1] == 0x00 && ((data[2] == 0x00 && data[3] == 0x01) || data[2] == 0x01));
-                byte[] annexb = isAnnexB ? data : avccToAnnexB(data);
-
-                long pts = info.presentationTimeUs; // 获取时间戳
-
-                sendVideoFrame(annexb, pts, true);
-
-            } else {
-                // 这是一个【纯配置】包，直接不发送
-                System.out.println("这是一个【纯配置】包，直接不发送。");
-                return;
-            }
-
-        } else {
-            // 普通帧数据
-            byte[] data = new byte[info.size];
-            synchronized (buffer) {
-                buffer.position(info.offset);
-                buffer.limit(info.size);
-                buffer.get(data);
-            }
-            // 如果是 AVCC 格式 转换为 Annex B 格式
-            boolean isAnnexB = (data.length >= 4 && data[0] == 0x00 && data[1] == 0x00 && ((data[2] == 0x00 && data[3] == 0x01) || data[2] == 0x01));
-            byte[] annexb = isAnnexB ? data : avccToAnnexB(data);
-
-            long pts = info.presentationTimeUs; // 获取时间戳
-
-            sendVideoFrame(annexb, pts, isKeyFrame);
-        }
-
-    }
-    */
-
-    // 查找第一个非配置NALU的索引（用于拆分复合包）
-    private int findFirstFrameAfterConfig(byte[] data) {
-        int pos = 0;
-        boolean foundConfig = false;
-        
-        while (pos < data.length - 4) {
-            if (data[pos] == 0x00 && data[pos+1] == 0x00 && 
-                ((data[pos+2] == 0x00 && data[pos+3] == 0x01) || data[pos+2] == 0x01)) {
-                
-                if (pos + 4 < data.length) {
-                    int naluType = data[pos+4] & 0x1F;
-                    // SPS=7, PPS=8, VPS=32 (H.265), AUD=9
-                    if (naluType == 7 || naluType == 8 || naluType == 32) {
-                        foundConfig = true;
-                        pos += 4; // 跳过起始码
-                        // 找到下一个起始码
-                        int naluStart = pos;
-                        pos += 1; // 跳过NALU头
-                        
-                        // 找到下一个NALU的起始码
-                        while (pos < data.length - 4) {
-                            if (data[pos] == 0x00 && data[pos+1] == 0x00 && 
-                                ((data[pos+2] == 0x00 && data[pos+3] == 0x01) || data[pos+2] == 0x01)) {
-                                // 找到下一个NALU，返回当前位置
-                                return pos;
-                            }
-                            pos++;
-                        }
-                    }
-                }
-            }
-            pos++;
-        }
-        
-        // 如果没有找到拆分点，返回0表示不需要拆分
-        return 0;
-    }
-
-    // 发送配置数据 (SPS/PPS)
-    private void sendConfigData(byte[] config, long pts) {
+    // 发送配置数据 H.264(SPS/PPS) H.265(VPS/SPS/PPS)
+    private void sendConfigData(byte[] config) {
         // 构造配置数据包头：type(2字节) + data_len(4字节) + pts(8字节) + data
         short configType = (short)101; // 101=配置数据
         int configDataLen = config.length;
@@ -1296,7 +1201,7 @@ public final class CameraServer {
         header.order(ByteOrder.BIG_ENDIAN); // 显式指定网络字节序
         header.putShort(configType);
         header.putInt(configDataLen);
-        header.putLong(pts);
+        header.putLong(0);
 
         // 发送配置数据包 - 放入TCP发送队列
         try {
@@ -1311,7 +1216,7 @@ public final class CameraServer {
     // 发送视频帧数据
     private void sendVideoFrame(byte[] frame, long pts, boolean isKeyFrame) {
         // 构造视频帧包头：type(2字节) + data_len(4字节) + pts(8字节) + data
-        short videoType = isKeyFrame ? (short)100 : (short)1; // 100=关键视频帧, 1=普通视频帧
+        short videoType = isKeyFrame ? VideoKeyframe : VideoNormal; // 100=关键视频帧, 1=普通视频帧
         int videoDataLen = frame.length;
 
         // 构造视频帧包头
@@ -1534,8 +1439,8 @@ public final class CameraServer {
             mAudioConfigData = new byte[info.size];
             buffer.position(info.offset);
             buffer.get(mAudioConfigData);
-            System.out.println("[音频发送] 已缓存音频配置数据，大小: " + mAudioConfigData_len);
-            return;  // 配置数据本身不发送，会在每个音频帧中附加
+            System.out.println("[音频] 已缓存音频配置数据，大小: " + mAudioConfigData_len);
+            return;  // 配置数据本身不发送，后面会在每个音频帧中附加
         }
 
         byte[] audioData = new byte[info.size];
@@ -1545,18 +1450,14 @@ public final class CameraServer {
 
         long pts = info.presentationTimeUs;
 
-        // 构造音频帧包头：type(2字节) + data_len(4字节) + pts(8字节) + [可选ADTS配置] + 音频数据
-        // type=200 表示音频帧
-        short audioType = (short)200;
+        // 构造音频帧包头：type(2字节) + data_len(4字节) + pts(8字节) + 音频数据
+        // type=2 表示音频帧
+        short audioType = AudioData;
         int audioDataLen = audioData.length;
         
-        // 音频每次都附加配置数据（如果已读取），确保新连接的客户端也能收到完整的AAC流
-        boolean hasConfigData = (mAudioConfigData != null && mAudioConfigData_len > 0);
-        if (hasConfigData) {
-            audioDataLen += mAudioConfigData_len;
-        }
+        // 确保新连接的客户端也能收到完整的AAC流
 
-        int headerSize = 14 + (hasConfigData ? mAudioConfigData_len : 0);
+        int headerSize = 14;
         
         // 显式指定网络字节序（大端）
         ByteBuffer header = ByteBuffer.allocate(headerSize);
@@ -1565,7 +1466,7 @@ public final class CameraServer {
         header.putInt(audioDataLen);
         header.putLong(pts);
         
-        // 每个音频帧都附加配置数据，这样新客户端也能接收到完整的AAC流信息
+        // 每个新连接的TCP client 音频帧都附加配置数据，这样新客户端也能接收到完整的AAC流信息
         if (hasConfigData) {
             header.put(mAudioConfigData);
         }
@@ -1609,4 +1510,27 @@ public final class CameraServer {
             }
         }
     }
+    // 发送视频帧数据
+    private void sendAudioFrame(byte[] frame, long pts, boolean isConfig) {
+        // 构造视频帧包头：type(2字节) + data_len(4字节) + pts(8字节) + data
+        short audioType = isConfig ? AudioConfig : AudioData; // 2=声音数据, 201=配置extradata 
+        int audioDataLen = frame.length;
+
+        // 构造视频帧包头
+        ByteBuffer header = ByteBuffer.allocate(14);
+        header.order(ByteOrder.BIG_ENDIAN); // 显式指定网络字节序
+        header.putShort(audioType);
+        header.putInt(audioDataLen);
+        header.putLong(pts);
+
+        // 发送视频帧包 - 放入TCP发送队列
+        try {
+            mTcpSendQueue.put(new TcpPacket(header.array(), frame));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        // System.out.println("发送视频帧 (type=" + videoType + "), size=" + videoDataLen); // 调试输出
+    }
+
 }
