@@ -265,8 +265,8 @@ public final class CameraServer {
                 }
             }
             // 视频频参数
-            if (argMap.containsKey("enable_audio")) {
-                String enableVideo = argMap.get("enable_audio").toLowerCase();
+            if (argMap.containsKey("enable_video")) {
+                String enableVideo = argMap.get("enable_video").toLowerCase();
                 if (enableVideo.equals("false") || enableVideo.equals("0")) {
                     ENABLE_VIDEO = false;
                     System.out.println("参数: 已禁用视频录制");
@@ -316,7 +316,7 @@ public final class CameraServer {
         System.out.println("用法: java -jar CameraServer.jar [参数列表]");
         System.out.println("可选参数:");
         System.out.println("  --help                        : 显示此帮助信息并退出。");
-        System.out.println("  enable_audio=<true|false>   : 启用或禁用视频录制 (默认: true)。");
+        System.out.println("  enable_video=<true|false>   : 启用或禁用视频录制 (默认: true)。");
         System.out.println("  fps=<值>                     : 设置视频帧率 (例如: 30)。默认值: " + FPS);
         System.out.println("  i_frame_interval=<值>       : 设置 I 帧间隔 (秒)。默认值: " + I_FRAME_INTERVAL);
         System.out.println("  bit_rate=<值>               : 设置视频比特率 (例如: 2)。单位 Mbps。默认值: " + BIT_RATE + "Mbps");
