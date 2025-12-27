@@ -1209,6 +1209,21 @@ public final class CameraServer {
 
     // --- 设置音频 MediaCodec 编码器 ---
     private void setupAudioCodec() throws IOException {
+        // 在初始化时添加
+        if (ENABLE_AUDIO) {
+            int minBufferSize = AudioRecord.getMinBufferSize(
+                AUDIO_SAMPLE_RATE,
+                AUDIO_CHANNELS == 2 ? AudioFormat.CHANNEL_IN_STEREO : AudioFormat.CHANNEL_IN_MONO,
+                AudioFormat.ENCODING_PCM_16BIT
+            );
+            if (minBufferSize == AudioRecord.ERROR || minBufferSize == AudioRecord.ERROR_BAD_VALUE) {
+                System.out.println("警告: 指定的音频参数不被支持，尝试回退");
+                // 回退到48000Hz单声道
+                AUDIO_SAMPLE_RATE = 48000;
+                AUDIO_CHANNELS = 1;
+            }
+        }
+
         System.out.println("正在设置音频 MediaCodec 编码器，采样率 " + AUDIO_SAMPLE_RATE + " Hz, " + AUDIO_CHANNELS + " 通道, " + AUDIO_BIT_RATE + " bps...");
         System.out.println("DEBUG: mAudioHandler = " + mAudioHandler);
         System.out.println("DEBUG: mAudioThread = " + mAudioThread);
@@ -1308,48 +1323,69 @@ public final class CameraServer {
     private void startAudioRecordThread() {
         Thread audioRecordThread = new Thread(() -> {
             try {
-                int bufferSize = AudioRecord.getMinBufferSize(
+                // 尝试获取最小缓冲区大小
+                int minBufferSize = AudioRecord.getMinBufferSize(
                     AUDIO_SAMPLE_RATE,
                     AUDIO_CHANNELS == 2 ? AudioFormat.CHANNEL_IN_STEREO : AudioFormat.CHANNEL_IN_MONO,
                     AudioFormat.ENCODING_PCM_16BIT
                 );
-                System.out.println("音频 AudioRecord 缓冲区大小: " + bufferSize);
 
+                // 检查是否获取成功
+                if (minBufferSize == AudioRecord.ERROR || minBufferSize == AudioRecord.ERROR_BAD_VALUE) {
+                    // 尝试使用更常见的配置
+                    System.out.println("警告: 无法获取有效缓冲区大小，尝试使用默认配置");
+                    AUDIO_SAMPLE_RATE = 48000; // 尝试48kHz
+                    AUDIO_CHANNELS = 1; // 尝试单声道
+                    minBufferSize = AudioRecord.getMinBufferSize(
+                        AUDIO_SAMPLE_RATE,
+                        AudioFormat.CHANNEL_IN_MONO,
+                        AudioFormat.ENCODING_PCM_16BIT
+                    );
+
+                    if (minBufferSize == AudioRecord.ERROR || minBufferSize == AudioRecord.ERROR_BAD_VALUE) {
+                        System.err.println("致命错误: 无法获取有效的音频缓冲区大小。");
+                        mIsAudioRecording = false;
+                        return;
+                    }
+                }
+
+                System.out.println("音频 AudioRecord 缓冲区大小: " + minBufferSize);
                 mAudioRecord = new AudioRecord(
                     MediaRecorder.AudioSource.MIC,
                     AUDIO_SAMPLE_RATE,
                     AUDIO_CHANNELS == 2 ? AudioFormat.CHANNEL_IN_STEREO : AudioFormat.CHANNEL_IN_MONO,
                     AudioFormat.ENCODING_PCM_16BIT,
-                    bufferSize
+                    minBufferSize
                 );
 
+                // 检查AudioRecord是否成功创建
+                if (mAudioRecord == null) {
+                    System.err.println("错误: AudioRecord 初始化失败，mAudioRecord 为 null。");
+                    mIsAudioRecording = false;
+                    return;
+                }
+
+                // 检查初始化状态
                 if (mAudioRecord.getState() != AudioRecord.STATE_INITIALIZED) {
-                    System.err.println("错误: AudioRecord 初始化失败。");
+                    System.err.println("错误: AudioRecord 初始化失败，状态: " + mAudioRecord.getState());
                     mIsAudioRecording = false;
                     return;
                 }
 
                 mAudioRecord.startRecording();
-                System.out.println("AudioRecord 已启动录音。");
-
+                System.out.println("AudioRecord 已启动录音（采样率: " + AUDIO_SAMPLE_RATE + "Hz, 通道: " + AUDIO_CHANNELS + "）");
                 byte[] audioBuffer = new byte[4096];
                 int readCount = 0;
-                
+
                 while (mIsAudioRecording && mIsRecording) {
-                    // 同步读取音频数据，放入队列供异步编码器使用
+                    // 读取音频数据
                     int readSize = mAudioRecord.read(audioBuffer, 0, audioBuffer.length);
                     if (readSize > 0) {
-                        readCount++;
-                        // if (readCount % 50 == 0) { // 每50次打一条日志
-                            // System.out.println("[音频] 读取PCM数据: " + readSize + " 字节，队列大小: " + mAudioDataQueue.size());
-                        // }
-                        // 复制一份数据放入队列
+                        // 处理音频数据
                         byte[] audioData = new byte[readSize];
                         System.arraycopy(audioBuffer, 0, audioData, 0, readSize);
                         try {
-                            // 使用 put 会阻塞直到队列有空间（或队列满时丢弃）
                             if (!mAudioDataQueue.offer(audioData, 100, TimeUnit.MILLISECONDS)) {
-                                // 队列满，丢弃这帧
                                 System.err.println("[音频] 警告：队列满，丢弃音频帧");
                             }
                         } catch (InterruptedException e) {
@@ -1359,7 +1395,6 @@ public final class CameraServer {
                         System.err.println("AudioRecord 读取错误: " + readSize);
                     }
                 }
-
             } catch (Exception e) {
                 System.err.println("音频录制线程错误: " + e.getMessage());
                 e.printStackTrace(System.err);
