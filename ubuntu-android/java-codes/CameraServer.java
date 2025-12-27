@@ -54,6 +54,7 @@ public final class CameraServer {
     private static final String TAG = "CameraServer";
 
     // --- 默认 MediaCodec 参数 ---
+    private static boolean ENABLE_VIDEO = true; // 是否录制视频，默认启用
     private static String MIME_TYPE = MediaFormat.MIMETYPE_VIDEO_AVC; // H.264 AVC，默认编码器
     private static int FPS = 30; // 帧率
     private static int I_FRAME_INTERVAL = 1; // I帧间隔 (秒)
@@ -266,8 +267,19 @@ public final class CameraServer {
                     System.err.println("警告: 无效的旋转角度: " + rotation + "。只支持 0, 90, 180, 270。使用默认 0。");
                 }
             }
-            // 音频参数
+            // 视频频参数
             if (argMap.containsKey("enable_audio")) {
+                String enableVideo = argMap.get("enable_audio").toLowerCase();
+                if (enableVideo.equals("false") || enableVideo.equals("0")) {
+                    ENABLE_VIDEO = false;
+                    System.out.println("参数: 已禁用视频录制");
+                } else {
+                    ENABLE_VIDEO = true;
+                    System.out.println("参数: 已启用视频录制");
+                }
+            }
+            // 音频参数
+            if (argMap.containsKey("enable_audio")){
                 String enableAudio = argMap.get("enable_audio").toLowerCase();
                 if (enableAudio.equals("false") || enableAudio.equals("0")) {
                     ENABLE_AUDIO = false;
@@ -277,6 +289,12 @@ public final class CameraServer {
                     System.out.println("参数: 已启用音频录制");
                 }
             }
+            // 视频 + 音频不能同时都禁用
+            if(!ENABLE_VIDEO && !ENABLE_AUDIO){
+                System.out.println("视频和音频不能同时都禁用。");
+                System.exit(0);
+            }
+            
             if (argMap.containsKey("audio_sample_rate")) {
                 AUDIO_SAMPLE_RATE = Integer.parseInt(argMap.get("audio_sample_rate"));
                 System.out.println("参数: audio_sample_rate = " + AUDIO_SAMPLE_RATE + " Hz");
@@ -301,6 +319,7 @@ public final class CameraServer {
         System.out.println("用法: java -jar CameraServer.jar [参数列表]");
         System.out.println("可选参数:");
         System.out.println("  --help                        : 显示此帮助信息并退出。");
+        System.out.println("  enable_audio=<true|false>   : 启用或禁用视频录制 (默认: true)。");
         System.out.println("  fps=<值>                     : 设置视频帧率 (例如: 30)。默认值: " + FPS);
         System.out.println("  i_frame_interval=<值>       : 设置 I 帧间隔 (秒)。默认值: " + I_FRAME_INTERVAL);
         System.out.println("  bit_rate=<值>               : 设置视频比特率 (例如: 2)。单位 Mbps。默认值: " + BIT_RATE + "Mbps");
@@ -717,7 +736,7 @@ public final class CameraServer {
         }
 
         System.out.println("检查摄像头支持的分辨率...");
-        String selectedCameraId = null;
+        String mCameraDeviceId = null;
         
         for (String id : manager.getCameraIdList()) {
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(id);
@@ -725,38 +744,38 @@ public final class CameraServer {
 
             // 如果指定了 camera_id，则检查该摄像头
             if (CAMERA_ID_TO_USE != null && CAMERA_ID_TO_USE.equals(id)) {
-                selectedCameraId = id;
+                mCameraDeviceId = id;
             }
             // 否则自动选择后置摄像头
             else if (CAMERA_ID_TO_USE == null && facing != null && facing == CameraCharacteristics.LENS_FACING_BACK) {
-                selectedCameraId = id;
+                mCameraDeviceId = id;
             }
 
-            if (selectedCameraId != null) {
+            if (mCameraDeviceId != null) {
                 break;
             }
         }
 
-        if (selectedCameraId == null) {
+        if (mCameraDeviceId == null) {
             System.err.println("未找到合适的摄像头");
             return;
         }
 
         // 检查该摄像头支持的分辨率
-        CameraCharacteristics characteristics = manager.getCameraCharacteristics(selectedCameraId);
+        CameraCharacteristics characteristics = manager.getCameraCharacteristics(mCameraDeviceId);
         StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
         if (map == null) {
-            System.err.println("摄像头 " + selectedCameraId + " 没有 StreamConfigurationMap");
+            System.err.println("摄像头 " + mCameraDeviceId + " 没有 StreamConfigurationMap");
             return;
         }
 
         Size[] videoSizes = map.getOutputSizes(MediaCodec.class);
         if (videoSizes == null || videoSizes.length == 0) {
-            System.err.println("摄像头 " + selectedCameraId + " 没有支持 MediaCodec 的输出尺寸");
+            System.err.println("摄像头 " + mCameraDeviceId + " 没有支持 MediaCodec 的输出尺寸");
             return;
         }
 
-        System.out.println("摄像头 " + selectedCameraId + " 支持的分辨率 (" + MIME_TYPE + "):");
+        System.out.println("摄像头 " + mCameraDeviceId + " 支持的分辨率 (" + MIME_TYPE + "):");
         for (Size size : videoSizes) {
             System.out.println("  - " + size.getWidth() + "x" + size.getHeight());
         }
