@@ -55,7 +55,7 @@ public final class CameraServer {
 
     // --- 默认 MediaCodec 参数 ---
     private static String MIME_TYPE = MediaFormat.MIMETYPE_VIDEO_AVC; // H.264 AVC，默认编码器
-    private static int FRAME_RATE = 30; // 帧率
+    private static int FPS = 30; // 帧率
     private static int I_FRAME_INTERVAL = 1; // I帧间隔 (秒)
     private static int BIT_RATE_MB = 1000000;
     private static int BIT_RATE = 2*BIT_RATE_MB; // 比特率 (2 Mbps)
@@ -218,9 +218,9 @@ public final class CameraServer {
                 TCP_PORT = Integer.parseInt(argMap.get("tcp_port"));
                 System.out.println("参数: tcp_port = " + TCP_PORT);
             }
-            if (argMap.containsKey("frame_rate")) {
-                FRAME_RATE = Integer.parseInt(argMap.get("frame_rate"));
-                System.out.println("参数: frame_rate = " + FRAME_RATE);
+            if (argMap.containsKey("fps")) {
+                FPS = Integer.parseInt(argMap.get("fps"));
+                System.out.println("参数: fps = " + FPS);
             }
             if (argMap.containsKey("i_frame_interval")) {
                 I_FRAME_INTERVAL = Integer.parseInt(argMap.get("i_frame_interval"));
@@ -301,7 +301,7 @@ public final class CameraServer {
         System.out.println("用法: java -jar CameraServer.jar [参数列表]");
         System.out.println("可选参数:");
         System.out.println("  --help                        : 显示此帮助信息并退出。");
-        System.out.println("  frame_rate=<值>             : 设置视频帧率 (例如: 30)。默认值: " + FRAME_RATE);
+        System.out.println("  fps=<值>                     : 设置视频帧率 (例如: 30)。默认值: " + FPS);
         System.out.println("  i_frame_interval=<值>       : 设置 I 帧间隔 (秒)。默认值: " + I_FRAME_INTERVAL);
         System.out.println("  bit_rate=<值>               : 设置视频比特率 (例如: 2)。单位 Mbps。默认值: " + BIT_RATE + "Mbps");
         System.out.println("  size=<宽度>x<高度>          : 设置视频分辨率 (例如: 1920x1080)。默认值: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT);
@@ -583,7 +583,7 @@ public final class CameraServer {
 
     // --- 设置 MediaCodec 编码器 ---
     private void setupMediaCodec() throws IOException {
-        System.out.println("正在设置 MediaCodec 编码器，分辨率 " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + " @ " + FRAME_RATE + "fps, " + BIT_RATE + "bps...");
+        System.out.println("正在设置 MediaCodec 编码器，分辨率 " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + " @ " + FPS + "fps, " + BIT_RATE + "bps...");
 
         // 释放之前的 MediaCodec 实例（如果存在）
         if (mMediaCodec != null) {
@@ -605,10 +605,9 @@ public final class CameraServer {
         // 设置编码器参数
         format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
         format.setInteger(MediaFormat.KEY_BIT_RATE, BIT_RATE);
-        format.setInteger(MediaFormat.KEY_FRAME_RATE, FRAME_RATE);
+        format.setInteger(MediaFormat.KEY_FRAME_RATE, FPS);
         format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, I_FRAME_INTERVAL);
-        format.setInteger(MediaFormat.KEY_ROTATION, ROTATE);
-        System.out.println("MediaCodec 配置: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + " @ " + FRAME_RATE + "fps, bitrate=" + BIT_RATE);
+        System.out.println("MediaCodec 配置: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + " @ " + FPS + "fps, bitrate=" + BIT_RATE);
 
         mMediaCodec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE); // 修正 configure 调用
 
@@ -710,12 +709,14 @@ public final class CameraServer {
 
     // --- 检查摄像头支持的分辨率，如需要则自动调整 ---
     private void checkCameraResolution() throws CameraAccessException {
-        System.out.println("检查摄像头支持的分辨率...");
+        System.out.println("正在打开摄像头...");
+
         CameraManager manager = (CameraManager) sContext.getSystemService(Context.CAMERA_SERVICE);
         if (manager == null) {
             throw new IllegalStateException("CameraManager 服务不可用。");
         }
 
+        System.out.println("检查摄像头支持的分辨率...");
         String selectedCameraId = null;
         
         for (String id : manager.getCameraIdList()) {
@@ -744,7 +745,6 @@ public final class CameraServer {
         // 检查该摄像头支持的分辨率
         CameraCharacteristics characteristics = manager.getCameraCharacteristics(selectedCameraId);
         StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-        
         if (map == null) {
             System.err.println("摄像头 " + selectedCameraId + " 没有 StreamConfigurationMap");
             return;
@@ -790,6 +790,18 @@ public final class CameraServer {
             VIDEO_HEIGHT = maxSize.getHeight();
             System.out.println("已自动调整为最大支持分辨率: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT);
         }
+
+        // 新增：输出支持的帧率范围
+        Range<Integer>[] fpsRanges = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
+        if (fpsRanges != null) {
+            System.out.println("    支持的帧率范围:");
+            for (Range<Integer> range : fpsRanges) {
+                System.out.println("      - " + range);
+                if(range.getUpper() >= FPS) {
+                    System.out.println("       ✓ 支持当前选择的 fps");
+                }
+            }
+        }
     }
 
     // --- 停止 MediaCodec ---
@@ -810,118 +822,19 @@ public final class CameraServer {
 
     // --- 打开摄像头 ---
     private void openCamera() throws CameraAccessException, InterruptedException {
-        System.out.println("正在打开摄像头...");
+
+        checkCameraResolution();
+
         CameraManager manager = (CameraManager) sContext.getSystemService(Context.CAMERA_SERVICE);
         if (manager == null) {
             throw new IllegalStateException("CameraManager 服务不可用。");
         }
 
-        String selectedCameraId = null;
-        System.out.println("可用的摄像头 ID 及其特性:");
-
-        for (String id : manager.getCameraIdList()) {
-            System.out.println("  摄像头 ID: " + id);
-            CameraCharacteristics characteristics = manager.getCameraCharacteristics(id);
-            Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
-
-            String facingStr = "未知";
-            if (facing != null) {
-                if (facing == CameraCharacteristics.LENS_FACING_BACK) facingStr = "后置";
-                else if (facing == CameraCharacteristics.LENS_FACING_FRONT) facingStr = "前置";
-                else if (facing == CameraCharacteristics.LENS_FACING_EXTERNAL) facingStr = "外部";
-            }
-            System.out.println("    LENS_FACING (镜头朝向): " + facingStr);
-
-            // 新增：输出支持的帧率范围
-            Range<Integer>[] fpsRanges = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
-            if (fpsRanges != null) {
-                System.out.println("    支持的帧率范围:");
-                for (Range<Integer> range : fpsRanges) {
-                    System.out.println("      - " + range);
-                }
-            }
-
-            // 简单检查该摄像头是否支持所需分辨率
-            StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-            if (map == null) {
-                System.out.println("    此摄像头没有 StreamConfigurationMap，跳过。");
-                continue;
-            }
-
-            Size[] videoSizes = map.getOutputSizes(MediaCodec.class);
-            if (videoSizes == null || videoSizes.length == 0) {
-                System.out.println("    此摄像头没有支持 MediaCodec 的输出尺寸，跳过。");
-                continue;
-            }
-
-            // 检查是否支持当前分辨率
-            boolean supportsResolution = false;
-            for (Size size : videoSizes) {
-                if (size.getWidth() == VIDEO_WIDTH && size.getHeight() == VIDEO_HEIGHT) {
-                    supportsResolution = true;
-                    break;
-                }
-            }
-
-            // 如果指定了 camera_id，则优先使用指定的摄像头
-            if (CAMERA_ID_TO_USE != null && CAMERA_ID_TO_USE.equals(id)) {
-                selectedCameraId = id;
-                System.out.println("    --> 使用指定的摄像头: " + CAMERA_ID_TO_USE);
-                if (!supportsResolution) {
-                    System.err.println("警告: 指定的摄像头 " + CAMERA_ID_TO_USE + " 不支持分辨率 " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT);
-                }
-                break;
-            }
-            // 如果没有指定 camera_id，则选择支持所需分辨率的后置摄像头
-            else if (CAMERA_ID_TO_USE == null && facing != null && facing == CameraCharacteristics.LENS_FACING_BACK) {
-                if (supportsResolution) {
-                    selectedCameraId = id;
-                    System.out.println("    --> 选择此后置摄像头: " + id);
-                    break;
-                }
-            }
-        }
-
-        if (selectedCameraId == null) {
-            System.err.println("未找到合适的摄像头，将使用第一个可用的摄像头。");
-            String[] cameraIds = manager.getCameraIdList();
-            if (cameraIds.length > 0) {
-                selectedCameraId = cameraIds[0];
-                System.out.println("使用摄像头: " + selectedCameraId);
-            } else {
-                throw new RuntimeException("没有可用的摄像头");
-            }
-        }
-
-        // 检查选定的摄像头是否支持当前分辨率，如不支持则调整
-        CameraCharacteristics selectedCharacteristics = manager.getCameraCharacteristics(selectedCameraId);
-        StreamConfigurationMap selectedMap = selectedCharacteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
-        
-        System.out.println("检查摄像头 " + selectedCameraId + " 的分辨率支持...");
-        
-        if (selectedMap == null) {
-            System.err.println("错误: selectedMap 为 null，无法检查分辨率");
-        } else {
-            Size[] supportedSizes = selectedMap.getOutputSizes(MediaCodec.class);
-            System.out.println("supportedSizes: " + (supportedSizes == null ? "null" : "长度=" + supportedSizes.length));
-            
-                boolean currentResolutionSupported = false;
-                for (Size s : supportedSizes) {
-                    if (s.getWidth() == VIDEO_WIDTH && s.getHeight() == VIDEO_HEIGHT) {
-                        currentResolutionSupported = true;
-                        break;
-                    }
-                }
-                
-            System.out.println("\n目标配置分辨率: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + 
-                (currentResolutionSupported ? " (✓ 摄像头支持)" : " (❌ 摄像头不支持，会被降低)"));
-        }
-
         // 请求打开摄像头
         mCameraOpenCloseLock.acquire(); // 获取信号量，防止多次打开
-        mCameraDeviceId = selectedCameraId; // 保存摄像头 ID
-        manager.openCamera(selectedCameraId, mStateCallback, mCameraHandler);
-        System.out.println("已请求打开摄像头: " + selectedCameraId + " (分辨率: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + ")");
+        mCameraDeviceId = CAMERA_ID_TO_USE; // 保存摄像头 ID
+        manager.openCamera(CAMERA_ID_TO_USE, mStateCallback, mCameraHandler);
+        System.out.println("已请求打开摄像头: " + CAMERA_ID_TO_USE + " (分辨率: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + ")");
     }
 
     // --- 关闭摄像头 ---
@@ -1039,13 +952,16 @@ public final class CameraServer {
             captureRequestBuilder.set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_VIDEO);
             // 对于录制，通常还需要设置 AE 模式以确保 FPS 稳定
             captureRequestBuilder.set(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_ON);
-            captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(FRAME_RATE, FRAME_RATE)); // 使用导入的 Range
+            captureRequestBuilder.set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, new Range<>(FPS, FPS)); // 使用导入的 Range
             captureRequestBuilder.set(CaptureRequest.CONTROL_AE_EXPOSURE_COMPENSATION, 0);
             
+            // 添加画面旋转, 不知道怎么搞的 在我android-34.jar 是说没有这个属性。
+            // captureRequestBuilder.set(CaptureRequest.CONTROL_ROTATION, ROTATE);
+            
             // 关键：设置摄像头帧率（纳秒）
-            long frameDurationNs = (long)(1_000_000_000.0 / FRAME_RATE);
+            long frameDurationNs = (long)(1_000_000_000.0 / FPS);
             captureRequestBuilder.set(CaptureRequest.SENSOR_FRAME_DURATION, frameDurationNs);
-            System.out.println("摄像头帧间隔设置为: " + frameDurationNs + " ns (对应 " + FRAME_RATE + " fps)");
+            System.out.println("摄像头帧间隔设置为: " + frameDurationNs + " ns (对应 " + FPS + " fps)");
             
             // 关键：获取摄像头的 SENSOR 尺寸并设置 SCALER_CROP_REGION
             if (mCameraDeviceId != null) {
