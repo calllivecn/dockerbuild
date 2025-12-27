@@ -210,33 +210,45 @@ public final class ListVideoAudio {
 
                             System.out.println("  - 编码器名称: " + info.getName());
                             
-                            // 获取支持的采样率
-                            int[] supportedSampleRates = capabilities.getAudioCapabilities().getSupportedSampleRates();
-                            if (supportedSampleRates != null && supportedSampleRates.length > 0) {
-                                System.out.print("    支持的采样率: ");
-                                for (int i = 0; i < supportedSampleRates.length; i++) {
-                                    System.out.print(supportedSampleRates[i]);
-                                    if (i < supportedSampleRates.length - 1) {
-                                        System.out.print(", ");
+                            // 安全获取支持的采样率
+                            try {
+                                int[] supportedSampleRates = capabilities.getAudioCapabilities().getSupportedSampleRates();
+                                if (supportedSampleRates != null && supportedSampleRates.length > 0) {
+                                    System.out.print("    支持的采样率: ");
+                                    for (int i = 0; i < supportedSampleRates.length; i++) {
+                                        System.out.print(supportedSampleRates[i]);
+                                        if (i < supportedSampleRates.length - 1) {
+                                            System.out.print(", ");
+                                        }
                                     }
+                                    System.out.println(" Hz");
+                                } else {
+                                    System.out.println("    支持的采样率: 未知");
                                 }
-                                System.out.println(" Hz");
-                            } else {
-                                System.out.println("    支持的采样率: 未知");
+                            } catch (Exception e) {
+                                System.out.println("    支持的采样率: 无法获取 (" + e.getMessage() + ")");
                             }
 
                             // 获取支持的声道数范围（使用getMaxInputChannelCount替代getSupportedChannelCounts）
-                            int maxChannels = capabilities.getAudioCapabilities().getMaxInputChannelCount();
-                            System.out.println("    最大支持声道数: " + maxChannels + " channels");
+                            try {
+                                int maxChannels = capabilities.getAudioCapabilities().getMaxInputChannelCount();
+                                System.out.println("    最大支持声道数: " + maxChannels + " channels");
+                            } catch (Exception e) {
+                                System.out.println("    最大支持声道数: 无法获取 (" + e.getMessage() + ")");
+                            }
 
                             // 获取支持的比特率范围
-                            android.util.Range<Integer> bitrateRange = capabilities.getAudioCapabilities().getBitrateRange();
-                            if (bitrateRange != null) {
-                                int lowerKbps = bitrateRange.getLower() / 1000;
-                                int upperKbps = bitrateRange.getUpper() / 1000;
-                                System.out.println("    支持的比特率范围: " + lowerKbps + "-" + upperKbps + " kbps");
-                            } else {
-                                System.out.println("    支持的比特率范围: 未知");
+                            try {
+                                android.util.Range<Integer> bitrateRange = capabilities.getAudioCapabilities().getBitrateRange();
+                                if (bitrateRange != null) {
+                                    int lowerKbps = bitrateRange.getLower() / 1000;
+                                    int upperKbps = bitrateRange.getUpper() / 1000;
+                                    System.out.println("    支持的比特率范围: " + lowerKbps + "-" + upperKbps + " kbps");
+                                } else {
+                                    System.out.println("    支持的比特率范围: 未知");
+                                }
+                            } catch (Exception e) {
+                                System.out.println("    支持的比特率范围: 无法获取 (" + e.getMessage() + ")");
                             }
 
                         } catch (IllegalArgumentException e) {
@@ -273,33 +285,45 @@ public final class ListVideoAudio {
                         System.out.println("  编码器: " + info.getName());
                         
                         // 采样率
-                        int[] sampleRates = audioCapabilities.getSupportedSampleRates();
-                        System.out.print("    采样率: ");
-                        if (sampleRates != null && sampleRates.length > 0) {
-                            for (int i = 0; i < sampleRates.length; i++) {
-                                System.out.print(sampleRates[i]);
-                                if (i < sampleRates.length - 1) {
-                                    System.out.print(", ");
+                        try {
+                            int[] sampleRates = audioCapabilities.getSupportedSampleRates();
+                            System.out.print("    采样率: ");
+                            if (sampleRates != null && sampleRates.length > 0) {
+                                for (int i = 0; i < sampleRates.length; i++) {
+                                    System.out.print(sampleRates[i]);
+                                    if (i < sampleRates.length - 1) {
+                                        System.out.print(", ");
+                                    }
                                 }
+                                System.out.println(" Hz");
+                            } else {
+                                System.out.println("未知");
                             }
-                            System.out.println(" Hz");
-                        } else {
-                            System.out.println("未知");
+                        } catch (Exception e) {
+                            System.out.println("无法获取采样率 (" + e.getMessage() + ")");
                         }
                         
                         // 比特率
-                        android.util.Range<Integer> bitrateRange = audioCapabilities.getBitrateRange();
-                        if (bitrateRange != null) {
-                            int lowerKbps = bitrateRange.getLower() / 1000;
-                            int upperKbps = bitrateRange.getUpper() / 1000;
-                            System.out.println("    比特率: " + lowerKbps + "-" + upperKbps + " kbps");
-                        } else {
-                            System.out.println("    比特率: 未知");
+                        try {
+                            android.util.Range<Integer> bitrateRange = audioCapabilities.getBitrateRange();
+                            if (bitrateRange != null) {
+                                int lowerKbps = bitrateRange.getLower() / 1000;
+                                int upperKbps = bitrateRange.getUpper() / 1000;
+                                System.out.println("    比特率: " + lowerKbps + "-" + upperKbps + " kbps");
+                            } else {
+                                System.out.println("    比特率: 未知");
+                            }
+                        } catch (Exception e) {
+                            System.out.println("无法获取比特率 (" + e.getMessage() + ")");
                         }
                         
                         // 声道数
-                        int maxChannels = audioCapabilities.getMaxInputChannelCount();
-                        System.out.println("    最大声道数: " + maxChannels + " channels");
+                        try {
+                            int maxChannels = audioCapabilities.getMaxInputChannelCount();
+                            System.out.println("    最大声道数: " + maxChannels + " channels");
+                        } catch (Exception e) {
+                            System.out.println("无法获取声道数 (" + e.getMessage() + ")");
+                        }
                         
                         // 获取并打印所有参数
                         System.out.println("    详细参数:");
