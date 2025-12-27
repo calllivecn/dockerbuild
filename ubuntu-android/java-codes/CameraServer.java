@@ -111,7 +111,7 @@ public final class CameraServer {
     private HandlerThread mAudioThread;
     private Handler mAudioHandler;
     private AudioRecord mAudioRecord;
-    private boolean mIsAudioRecording = false;
+    private volatile boolean mIsAudioRecording = false;  // 使用 volatile 确保可见性
     private byte[] mAudioConfigData = null;  // 保存ADTS配置数据，每个音频帧都会附加
     private int mAudioConfigData_len = 0;
     private BlockingQueue<byte[]> mAudioDataQueue = new LinkedBlockingQueue<>(300); // 改用 BlockingQueue
@@ -119,6 +119,9 @@ public final class CameraServer {
     // --- TCP发送队列 ---
     private BlockingQueue<TcpPacket> mTcpSendQueue = new LinkedBlockingQueue<>(1000);
     private Thread mTcpSendThread;
+
+    // --- 音频录制线程 ---
+    private Thread mAudioRecordThread;
 
     private static boolean showHelp = false; // 添加 showHelp 标志
 
@@ -254,7 +257,7 @@ public final class CameraServer {
                 String codecStr = argMap.get("codec").toLowerCase();
                 if (codecStr.equals("hevc") || codecStr.equals("h265")) {
                     MIME_TYPE = MediaFormat.MIMETYPE_VIDEO_HEVC;
-                    System.out.println("参数: codec = " + codecStr + " (使用 HEVC/H.265 编码)。");
+                    System.out.println("参数: codec = " + codecStr + " (使用 HEVC/H.264 编码)。");
                 } else if (codecStr.equals("avc") || codecStr.equals("h264")) {
                     MIME_TYPE = MediaFormat.MIMETYPE_VIDEO_AVC;
                     System.out.println("参数: codec = " + codecStr + " (使用 AVC/H.264 编码)。");
@@ -555,7 +558,7 @@ public final class CameraServer {
 
         System.out.println("正在停止录制...");
         mIsRecording = false;
-        mIsAudioRecording = false;
+        mIsAudioRecording = false; // 关键：先设置音频录制标志为false
 
         // 1. 关闭摄像头（如果启用视频录制）
         if (ENABLE_VIDEO) {
@@ -569,8 +572,8 @@ public final class CameraServer {
 
         // 3. 停止音频编码器和录制（如果启用音频录制）
         if (ENABLE_AUDIO) {
-            stopAudioCodec();
             stopAudioRecord();
+            stopAudioCodec();
         }
 
         // 4. 停止线程
@@ -1287,6 +1290,10 @@ public final class CameraServer {
                             // }
                             sendAudioDataToClients(outputBuffer, info);
                         }
+                    } else if ((info.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0) {
+                        // 检测到结束流标记，退出编码
+                        System.out.println("[音频编码器] 检测到流结束标记");
+                        mIsAudioRecording = false;
                     }
                     codec.releaseOutputBuffer(index, false);
                 }
@@ -1294,6 +1301,7 @@ public final class CameraServer {
                 @Override
                 public void onError(MediaCodec codec, MediaCodec.CodecException e) {
                     System.err.println("音频编码器错误: " + e.getMessage());
+                    mIsAudioRecording = false;
                 }
 
                 @Override
@@ -1314,7 +1322,7 @@ public final class CameraServer {
 
     // --- 启动音频录制线程 ---
     private void startAudioRecordThread() {
-        Thread audioRecordThread = new Thread(() -> {
+        mAudioRecordThread = new Thread(() -> {
             try {
                 int bufferSize = AudioRecord.getMinBufferSize(
                     AUDIO_SAMPLE_RATE,
@@ -1344,9 +1352,15 @@ public final class CameraServer {
                 int readCount = 0;
                 
                 while (mIsAudioRecording && mIsRecording) {
+
                     // 同步读取音频数据，放入队列供异步编码器使用
                     int readSize = mAudioRecord.read(audioBuffer, 0, audioBuffer.length);
-                    if (readSize > 0) {
+                    
+                    // 检查读取状态
+                    if (readSize == AudioRecord.ERROR_INVALID_OPERATION || readSize == AudioRecord.ERROR_BAD_VALUE) {
+                        System.err.println("AudioRecord 读取错误: " + readSize);
+                        break;
+                    } else if (readSize > 0) {
                         readCount++;
                         // if (readCount % 50 == 0) { // 每50次打一条日志
                             // System.out.println("[音频] 读取PCM数据: " + readSize + " 字节，队列大小: " + mAudioDataQueue.size());
@@ -1354,18 +1368,17 @@ public final class CameraServer {
                         // 复制一份数据放入队列
                         byte[] audioData = new byte[readSize];
                         System.arraycopy(audioBuffer, 0, audioData, 0, readSize);
-                        try {
-                            // 使用 put 会阻塞直到队列有空间（或队列满时丢弃）
-                            if (!mAudioDataQueue.offer(audioData, 100, TimeUnit.MILLISECONDS)) {
-                                // 队列满，丢弃这帧
-                                System.err.println("[音频] 警告：队列满，丢弃音频帧");
-                            }
-                        } catch (InterruptedException e) {
-                            Thread.currentThread().interrupt();
+                        
+                        // 使用带超时的 offer，避免无限期阻塞
+                        if (!mAudioDataQueue.offer(audioData, 50, TimeUnit.MILLISECONDS)) {
+                            // 队列满，丢弃这帧
+                            System.err.println("[音频] 警告：队列满，丢弃音频帧");
                         }
                     } else if (readSize < 0) {
                         System.err.println("AudioRecord 读取错误: " + readSize);
+                        break;
                     }
+                    // 如果 readSize == 0，继续循环（正常情况）
                 }
 
             } catch (Exception e) {
@@ -1375,7 +1388,7 @@ public final class CameraServer {
                 stopAudioRecord();
             }
         }, "AudioRecordThread");
-        audioRecordThread.start();
+        mAudioRecordThread.start();
     }
 
     // --- 发送编码后的音频数据到客户端 ---
@@ -1439,6 +1452,13 @@ public final class CameraServer {
                 mAudioRecord = null;
             }
         }
+        
+        // 设置标志位，确保音频录制循环退出
+        mIsAudioRecording = false;
+ 
+        
+        // 清空音频数据队列，防止线程阻塞
+        mAudioDataQueue.clear();
     }
     // 发送视频帧数据
     private void sendAudioFrame(byte[] frame, long pts, short audioType) {
@@ -1464,4 +1484,3 @@ public final class CameraServer {
     }
 
 } 
-
