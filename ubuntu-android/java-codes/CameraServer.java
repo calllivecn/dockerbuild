@@ -70,9 +70,6 @@ public final class CameraServer {
     private static int AUDIO_CHANNELS = 2; // 立体声
     private static int AUDIO_BIT_RATE = 128000; // 128 kbps
 
-    // --- 命令行参数接收的变量 ---
-    private static String CAMERA_ID_TO_USE = null; // 默认不指定，让程序自动选择后置摄像头
-
     // --- 网络相关 ---
     private static int TCP_PORT = 58888; // 改为非 final
     private static String TCP_HOST = "::1"; // 改为非 final
@@ -85,7 +82,7 @@ public final class CameraServer {
 
     // --- Camera 相关 ---
     private CameraDevice mCameraDevice;
-    private String mCameraDeviceId; // 保存摄像头 ID
+    private static String mCameraDeviceId; // 保存摄像头 ID
     private CameraCaptureSession mCaptureSession;
     private HandlerThread mCameraThread;
     private Handler mCameraHandler;
@@ -243,8 +240,8 @@ public final class CameraServer {
                 }
             }
             if (argMap.containsKey("camera_id")) {
-                CAMERA_ID_TO_USE = argMap.get("camera_id");
-                System.out.println("参数: camera_id = " + CAMERA_ID_TO_USE);
+                mCameraDeviceId = argMap.get("camera_id");
+                System.out.println("参数: camera_id = " + mCameraDeviceId);
             }
             if (argMap.containsKey("codec")) {
                 String codecStr = argMap.get("codec").toLowerCase();
@@ -736,18 +733,17 @@ public final class CameraServer {
         }
 
         System.out.println("检查摄像头支持的分辨率...");
-        String mCameraDeviceId = null;
         
         for (String id : manager.getCameraIdList()) {
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(id);
             Integer facing = characteristics.get(CameraCharacteristics.LENS_FACING);
 
             // 如果指定了 camera_id，则检查该摄像头
-            if (CAMERA_ID_TO_USE != null && CAMERA_ID_TO_USE.equals(id)) {
+            if (mCameraDeviceId != null && mCameraDeviceId.equals(id)) {
                 mCameraDeviceId = id;
             }
             // 否则自动选择后置摄像头
-            else if (CAMERA_ID_TO_USE == null && facing != null && facing == CameraCharacteristics.LENS_FACING_BACK) {
+            else if (mCameraDeviceId == null && facing != null && facing == CameraCharacteristics.LENS_FACING_BACK) {
                 mCameraDeviceId = id;
             }
 
@@ -851,9 +847,8 @@ public final class CameraServer {
 
         // 请求打开摄像头
         mCameraOpenCloseLock.acquire(); // 获取信号量，防止多次打开
-        mCameraDeviceId = CAMERA_ID_TO_USE; // 保存摄像头 ID
-        manager.openCamera(CAMERA_ID_TO_USE, mStateCallback, mCameraHandler);
-        System.out.println("已请求打开摄像头: " + CAMERA_ID_TO_USE + " (分辨率: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + ")");
+        manager.openCamera(mCameraDeviceId, mStateCallback, mCameraHandler);
+        System.out.println("已请求打开摄像头: " + mCameraDeviceId + " (分辨率: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + ")");
     }
 
     // --- 关闭摄像头 ---
