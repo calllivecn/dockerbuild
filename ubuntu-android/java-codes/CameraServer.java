@@ -146,6 +146,13 @@ public final class CameraServer {
             System.exit(0);
         }
 
+        // 检查是否同时禁用了音频和视频录制
+        if (!ENABLE_VIDEO && !ENABLE_AUDIO) {
+            System.out.println("错误: 视频和音频不能同时都禁用。请至少启用其中一个。");
+            printHelp();
+            System.exit(1);
+        }
+
         // 使用 InitializeAndroidEnvironment 进行初始化
         try {
             sContext = InitializeAndroidEnvironment.getSystemContext();
@@ -264,7 +271,7 @@ public final class CameraServer {
                     System.err.println("警告: 无效的旋转角度: " + rotation + "。只支持 0, 90, 180, 270。使用默认 0。");
                 }
             }
-            // 视频频参数
+            // 视频参数
             if (argMap.containsKey("enable_video")) {
                 String enableVideo = argMap.get("enable_video").toLowerCase();
                 if (enableVideo.equals("false") || enableVideo.equals("0")) {
@@ -276,7 +283,7 @@ public final class CameraServer {
                 }
             }
             // 音频参数
-            if (argMap.containsKey("enable_audio")){
+            if (argMap.containsKey("enable_audio")) {
                 String enableAudio = argMap.get("enable_audio").toLowerCase();
                 if (enableAudio.equals("false") || enableAudio.equals("0")) {
                     ENABLE_AUDIO = false;
@@ -285,11 +292,6 @@ public final class CameraServer {
                     ENABLE_AUDIO = true;
                     System.out.println("参数: 已启用音频录制");
                 }
-            }
-            // 视频 + 音频不能同时都禁用
-            if(!ENABLE_VIDEO && !ENABLE_AUDIO){
-                System.out.println("视频和音频不能同时都禁用。");
-                System.exit(0);
             }
             
             if (argMap.containsKey("audio_sample_rate")) {
@@ -317,6 +319,7 @@ public final class CameraServer {
         System.out.println("可选参数:");
         System.out.println("  --help                        : 显示此帮助信息并退出。");
         System.out.println("  enable_video=<true|false>   : 启用或禁用视频录制 (默认: true)。");
+        System.out.println("  enable_audio=<true|false>   : 启用或禁用音频录制 (默认: true)。");
         System.out.println("  fps=<值>                     : 设置视频帧率 (例如: 30)。默认值: " + FPS);
         System.out.println("  i_frame_interval=<值>       : 设置 I 帧间隔 (秒)。默认值: " + I_FRAME_INTERVAL);
         System.out.println("  bit_rate=<值>               : 设置视频比特率 (例如: 2)。单位 Mbps。默认值: " + BIT_RATE + "Mbps");
@@ -326,13 +329,13 @@ public final class CameraServer {
         System.out.println("  camera_id=<ID>              : 指定要使用的摄像头 ID (例如: 0 或 1)。默认自动选择后置摄像头。");
         System.out.println("  codec=<类型>                : 设置视频编码器类型 (例如: avc 或 hevc)。默认值: " + (MIME_TYPE.equals(MediaFormat.MIMETYPE_VIDEO_AVC) ? "avc (H.264)" : "hevc (H.265)"));
         System.out.println("  rotate=<角度>               : 顺时针旋转视频角度 (0, 90, 180, 270)。默认值: " + ROTATE);
-        System.out.println("  enable_audio=<true|false>   : 启用或禁用音频录制 (默认: true)。");
         System.out.println("  audio_sample_rate=<值>      : 设置音频采样率 (例如: 44100)。默认值: " + AUDIO_SAMPLE_RATE);
         System.out.println("  audio_channels=<值>         : 设置音频通道数 (1=单声道, 2=立体声)。默认值: " + AUDIO_CHANNELS);
         System.out.println("  audio_bit_rate=<值>         : 设置音频比特率 (单位: kbps)。默认值: " + (AUDIO_BIT_RATE / 1000) + " kbps");
         System.out.println("\n示例:");
         System.out.println("  java -jar CameraServer.jar tcp_addr=" + TCP_HOST + " size=1280x720");
-        System.out.println("  java -jar CameraServer.jar tcp_addr=" + TCP_HOST + " tcp_port=" + TCP_PORT + " enable_audio=false");
+        System.out.println("  java -jar CameraServer.jar tcp_addr=" + TCP_HOST + " tcp_port=" + TCP_PORT + " enable_video=false enable_audio=true");
+        System.out.println("  java -jar CameraServer.jar tcp_addr=" + TCP_HOST + " tcp_port=" + TCP_PORT + " enable_video=true enable_audio=false");
         System.out.println("  java -jar CameraServer.jar tcp_addr=" + TCP_HOST + " tcp_port=" + TCP_PORT + " enable_audio=true audio_sample_rate=48000");
     }
 
@@ -351,11 +354,7 @@ public final class CameraServer {
                     Socket client = mServerSocket.accept();
                     System.out.println("新的 TCP 客户端连接: " + client.getRemoteSocketAddress());
                     boolean wasEmpty = mTcpClients.isEmpty();
-                    // 发送 extradata 信息
-                    if(!wasEmpty){
-                        sendAudioFrame(mAudioConfigData, 0, AudioConfig);
-                    }
-
+                    
                     mTcpClients.add(client);
 
                     if (wasEmpty) {
@@ -486,18 +485,21 @@ public final class CameraServer {
         mIsRecording = true;
 
         try {
-            // 1. 启动编码器线程（必须在 setupMediaCodec 之前）
-            // 因为 MediaCodec 回调需要 mEncoderHandler
-            mEncoderThread = new HandlerThread("MediaCodecThread");
-            mEncoderThread.start();
-            mEncoderHandler = new Handler(mEncoderThread.getLooper());
-            System.out.println("编码器线程已启动。");
+            // 1. 启动摄像头线程（如果启用视频录制）
+            if (ENABLE_VIDEO) {
+                mCameraThread = new HandlerThread("CameraThread");
+                mCameraThread.start();
+                mCameraHandler = new Handler(mCameraThread.getLooper());
+                System.out.println("摄像头线程已启动。");
+            }
 
-            // 2. 启动摄像头线程
-            mCameraThread = new HandlerThread("CameraThread");
-            mCameraThread.start();
-            mCameraHandler = new Handler(mCameraThread.getLooper());
-            System.out.println("摄像头线程已启动。");
+            // 2. 启动编码器线程（如果启用视频录制）
+            if (ENABLE_VIDEO) {
+                mEncoderThread = new HandlerThread("MediaCodecThread");
+                mEncoderThread.start();
+                mEncoderHandler = new Handler(mEncoderThread.getLooper());
+                System.out.println("编码器线程已启动。");
+            }
 
             // 3. 如果启用音频，启动音频线程
             if (ENABLE_AUDIO) {
@@ -510,11 +512,11 @@ public final class CameraServer {
             // 创建 Executor 用于摄像头会话
             mExecutor = Executors.newSingleThreadExecutor();
 
-            // 4. 初始化视频 MediaCodec 编码器
-            // 生命周期: configure() → createInputSurface() → start()
-            // 必须在摄像头打开前完成，因为 createCaptureSession 需要 mEncoderInputSurface
-            setupMediaCodec();
-            System.out.println("视频 MediaCodec 设置完成，mEncoderInputSurface 已就绪。");
+            // 4. 初始化视频 MediaCodec 编码器（如果启用视频录制）
+            if (ENABLE_VIDEO) {
+                setupMediaCodec();
+                System.out.println("视频 MediaCodec 设置完成，mEncoderInputSurface 已就绪。");
+            }
 
             // 5. 如果启用音频，初始化音频 MediaCodec 编码器
             if (ENABLE_AUDIO) {
@@ -524,9 +526,11 @@ public final class CameraServer {
                 System.out.println("音频录制线程已启动。");
             }
 
-            // 6. 打开摄像头（异步，openCamera 返回后摄像头可能还未真正打开）
-            openCamera();
-            System.out.println("摄像头打开请求已发送。");
+            // 6. 打开摄像头（如果启用视频录制）
+            if (ENABLE_VIDEO) {
+                openCamera();
+                System.out.println("摄像头打开请求已发送。");
+            }
 
         } catch (IOException | CameraAccessException | InterruptedException e) {
             System.err.println("启动录制过程中发生错误: " + e.getMessage());
@@ -553,13 +557,17 @@ public final class CameraServer {
         mIsRecording = false;
         mIsAudioRecording = false;
 
-        // 1. 关闭摄像头
-        closeCamera();
+        // 1. 关闭摄像头（如果启用视频录制）
+        if (ENABLE_VIDEO) {
+            closeCamera();
+        }
 
-        // 2. 停止视频编码器
-        stopMediaCodec();
+        // 2. 停止视频编码器（如果启用视频录制）
+        if (ENABLE_VIDEO) {
+            stopMediaCodec();
+        }
 
-        // 3. 停止音频编码器和录制
+        // 3. 停止音频编码器和录制（如果启用音频录制）
         if (ENABLE_AUDIO) {
             stopAudioCodec();
             stopAudioRecord();
@@ -1209,21 +1217,6 @@ public final class CameraServer {
 
     // --- 设置音频 MediaCodec 编码器 ---
     private void setupAudioCodec() throws IOException {
-        // 在初始化时添加
-        if (ENABLE_AUDIO) {
-            int minBufferSize = AudioRecord.getMinBufferSize(
-                AUDIO_SAMPLE_RATE,
-                AUDIO_CHANNELS == 2 ? AudioFormat.CHANNEL_IN_STEREO : AudioFormat.CHANNEL_IN_MONO,
-                AudioFormat.ENCODING_PCM_16BIT
-            );
-            if (minBufferSize == AudioRecord.ERROR || minBufferSize == AudioRecord.ERROR_BAD_VALUE) {
-                System.out.println("警告: 指定的音频参数不被支持，尝试回退");
-                // 回退到48000Hz单声道
-                AUDIO_SAMPLE_RATE = 48000;
-                AUDIO_CHANNELS = 1;
-            }
-        }
-
         System.out.println("正在设置音频 MediaCodec 编码器，采样率 " + AUDIO_SAMPLE_RATE + " Hz, " + AUDIO_CHANNELS + " 通道, " + AUDIO_BIT_RATE + " bps...");
         System.out.println("DEBUG: mAudioHandler = " + mAudioHandler);
         System.out.println("DEBUG: mAudioThread = " + mAudioThread);
@@ -1323,69 +1316,48 @@ public final class CameraServer {
     private void startAudioRecordThread() {
         Thread audioRecordThread = new Thread(() -> {
             try {
-                // 尝试获取最小缓冲区大小
-                int minBufferSize = AudioRecord.getMinBufferSize(
+                int bufferSize = AudioRecord.getMinBufferSize(
                     AUDIO_SAMPLE_RATE,
                     AUDIO_CHANNELS == 2 ? AudioFormat.CHANNEL_IN_STEREO : AudioFormat.CHANNEL_IN_MONO,
                     AudioFormat.ENCODING_PCM_16BIT
                 );
+                System.out.println("音频 AudioRecord 缓冲区大小: " + bufferSize);
 
-                // 检查是否获取成功
-                if (minBufferSize == AudioRecord.ERROR || minBufferSize == AudioRecord.ERROR_BAD_VALUE) {
-                    // 尝试使用更常见的配置
-                    System.out.println("警告: 无法获取有效缓冲区大小，尝试使用默认配置");
-                    AUDIO_SAMPLE_RATE = 48000; // 尝试48kHz
-                    AUDIO_CHANNELS = 1; // 尝试单声道
-                    minBufferSize = AudioRecord.getMinBufferSize(
-                        AUDIO_SAMPLE_RATE,
-                        AudioFormat.CHANNEL_IN_MONO,
-                        AudioFormat.ENCODING_PCM_16BIT
-                    );
-
-                    if (minBufferSize == AudioRecord.ERROR || minBufferSize == AudioRecord.ERROR_BAD_VALUE) {
-                        System.err.println("致命错误: 无法获取有效的音频缓冲区大小。");
-                        mIsAudioRecording = false;
-                        return;
-                    }
-                }
-
-                System.out.println("音频 AudioRecord 缓冲区大小: " + minBufferSize);
                 mAudioRecord = new AudioRecord(
                     MediaRecorder.AudioSource.MIC,
                     AUDIO_SAMPLE_RATE,
                     AUDIO_CHANNELS == 2 ? AudioFormat.CHANNEL_IN_STEREO : AudioFormat.CHANNEL_IN_MONO,
                     AudioFormat.ENCODING_PCM_16BIT,
-                    minBufferSize
+                    bufferSize
                 );
 
-                // 检查AudioRecord是否成功创建
-                if (mAudioRecord == null) {
-                    System.err.println("错误: AudioRecord 初始化失败，mAudioRecord 为 null。");
-                    mIsAudioRecording = false;
-                    return;
-                }
-
-                // 检查初始化状态
                 if (mAudioRecord.getState() != AudioRecord.STATE_INITIALIZED) {
-                    System.err.println("错误: AudioRecord 初始化失败，状态: " + mAudioRecord.getState());
+                    System.err.println("错误: AudioRecord 初始化失败。");
                     mIsAudioRecording = false;
                     return;
                 }
 
                 mAudioRecord.startRecording();
-                System.out.println("AudioRecord 已启动录音（采样率: " + AUDIO_SAMPLE_RATE + "Hz, 通道: " + AUDIO_CHANNELS + "）");
+                System.out.println("AudioRecord 已启动录音。");
+
                 byte[] audioBuffer = new byte[4096];
                 int readCount = 0;
-
+                
                 while (mIsAudioRecording && mIsRecording) {
-                    // 读取音频数据
+                    // 同步读取音频数据，放入队列供异步编码器使用
                     int readSize = mAudioRecord.read(audioBuffer, 0, audioBuffer.length);
                     if (readSize > 0) {
-                        // 处理音频数据
+                        readCount++;
+                        // if (readCount % 50 == 0) { // 每50次打一条日志
+                            // System.out.println("[音频] 读取PCM数据: " + readSize + " 字节，队列大小: " + mAudioDataQueue.size());
+                        // }
+                        // 复制一份数据放入队列
                         byte[] audioData = new byte[readSize];
                         System.arraycopy(audioBuffer, 0, audioData, 0, readSize);
                         try {
+                            // 使用 put 会阻塞直到队列有空间（或队列满时丢弃）
                             if (!mAudioDataQueue.offer(audioData, 100, TimeUnit.MILLISECONDS)) {
+                                // 队列满，丢弃这帧
                                 System.err.println("[音频] 警告：队列满，丢弃音频帧");
                             }
                         } catch (InterruptedException e) {
@@ -1395,6 +1367,7 @@ public final class CameraServer {
                         System.err.println("AudioRecord 读取错误: " + readSize);
                     }
                 }
+
             } catch (Exception e) {
                 System.err.println("音频录制线程错误: " + e.getMessage());
                 e.printStackTrace(System.err);
@@ -1490,4 +1463,5 @@ public final class CameraServer {
         // System.out.println("发送视频帧 (type=" + videoType + "), size=" + videoDataLen); // 调试输出
     }
 
-}
+} 
+
