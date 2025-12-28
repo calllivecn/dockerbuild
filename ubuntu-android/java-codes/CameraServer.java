@@ -817,7 +817,7 @@ public final class CameraServer {
             System.out.println("已自动调整为最大支持分辨率: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT);
         }
 
-        // 新增：输出支持的帧率范围
+        // 新增：输出支持的帧率范围, 该摄像头 在自动曝光（AE）系统下支持的所有目标帧率范围
         Range<Integer>[] fpsRanges = characteristics.get(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES);
         if (fpsRanges != null) {
             System.out.println("    支持的帧率范围:");
