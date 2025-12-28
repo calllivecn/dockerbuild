@@ -83,6 +83,7 @@ public final class CameraInfo2 {
     }
 
     public static void listAllSupportedVideoProfiles(String cameraId) {
+        System.out.println("  CamcorderProfile 是静态配置表。不同 [分辨率@fps] 的组合可以直接参考");
         int[] qualityLevels = {
             CamcorderProfile.QUALITY_LOW,
             CamcorderProfile.QUALITY_HIGH,
@@ -107,30 +108,36 @@ public final class CameraInfo2 {
 
         for (int quality : qualityLevels) {
             String name = getQualityName(quality);
+
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                // --- API 31+ 逻辑 ---
+                // --- API 31+ 逻辑：原生支持多编码器遍历 ---
                 EncoderProfiles profiles = CamcorderProfile.getAll(cameraId, quality);
                 if (profiles != null) {
                     List<EncoderProfiles.VideoProfile> vProfiles = profiles.getVideoProfiles();
                     List<EncoderProfiles.AudioProfile> aProfiles = profiles.getAudioProfiles();
 
-                    if (!vProfiles.isEmpty()) {
-                        // 通常取第一个配置
-                        EncoderProfiles.VideoProfile vProfile = vProfiles.get(0);
-                        // AudioProfile 可能为空（例如静音录制配置）
-                        EncoderProfiles.AudioProfile aProfile = aProfiles.isEmpty() ? null : aProfiles.get(0);
+                    for (int i = 0; i < vProfiles.size(); i++) {
+                        EncoderProfiles.VideoProfile v = vProfiles.get(i);
+                        // 匹配对应的音频流，如果没有则取第一个
+                        EncoderProfiles.AudioProfile a = (i < aProfiles.size()) ? aProfiles.get(i) : 
+                                                         (!aProfiles.isEmpty() ? aProfiles.get(0) : null);
 
-                        System.out.println("VideoProfile " + String.format(
-                            "%s: %dx%d @ %d fps (video codec: %s, audio codec: %s)",
-                            name,
-                            vProfile.getWidth(),
-                            vProfile.getHeight(),
-                            vProfile.getFrameRate(),
-                            getVideoCodecName(vProfile.getCodec()),
-                            aProfile != null ? getAudioCodecName(aProfile.getCodec()) : "NONE"
+                        double videoBitrateMbps = v.getBitrate() / 1000000.0;
+                        String profileLabel = (vProfiles.size() > 1) ? String.format("%s[%d]", name, i) : name;
+
+                        System.out.println(String.format(
+                            "  VideoProfile %-15s: %dx%d @ %d fps | Video: %-12s (%.2f Mbps) | Audio: %s",
+                            profileLabel,
+                            v.getWidth(),
+                            v.getHeight(),
+                            v.getFrameRate(),
+                            getVideoCodecName(v.getCodec()),
+                            videoBitrateMbps,
+                            (a != null) ? getAudioCodecName(a.getCodec()) : "NONE"
                         ));
                     }
                 }
+
             } else {
                 // --- API 28 - 30 逻辑 ---
                 // 兼容性处理：由于你之前报错，这里必须先将 String 类型的 cameraId 转为 int
@@ -139,13 +146,16 @@ public final class CameraInfo2 {
                     if (CamcorderProfile.hasProfile(idAsInt, quality)) {
                         CamcorderProfile profile = CamcorderProfile.get(idAsInt, quality);
                         if (profile != null) {
-                            System.out.println("VideoProfile " + String.format(
-                                "%s: %dx%d @ %d fps (video codec: %s, audio codec: %s)",
+                            double videoBitrateMbps = profile.videoBitRate / 1000000.0;
+
+                            System.out.println(String.format(
+                                "  VideoProfile %-15s: %dx%d @ %d fps | Video: %-12s (%.2f Mbps) | Audio: %s",
                                 name,
                                 profile.videoFrameWidth,
                                 profile.videoFrameHeight,
                                 profile.videoFrameRate,
                                 getVideoCodecName(profile.videoCodec),
+                                videoBitrateMbps,
                                 getAudioCodecName(profile.audioCodec)
                             ));
                         }
@@ -179,26 +189,30 @@ public final class CameraInfo2 {
         }
     }
 
-    private static String getVideoCodecName(int codec) {
+    // --- 修正后的映射函数 ---
+    public static String getVideoCodecName(int codec) {
+        // 参考 MediaRecorder.VideoEncoder
         switch (codec) {
-            case 0: return "H.264 (AVC)";
-            case 1: return "H.265 (HEVC)";
-            case 2: return "VP8";
-            case 3: return "VP9";
-            case 4: return "MPEG-4 SP";
-            default: return "Unknown(" + codec + ")";
+            case 1: return "H.263";
+            case 2: return "H.264 (AVC)";
+            case 3: return "MPEG-4 SP";
+            case 4: return "VP8";
+            case 5: return "HEVC (H.265)";
+            case 6: return "VP9";
+            case 7: return "AV1";
+            default: return "CODEC_" + codec;
         }
     }
 
-    private static String getAudioCodecName(int codec) {
+    public static String getAudioCodecName(int codec) {
+        // 参考 MediaRecorder.AudioEncoder
         switch (codec) {
-            case 0: return "AAC";
-            case 1: return "AMR-NB";
-            case 2: return "AMR-WB";
-            case 3: return "MP3";
-            case 4: return "Vorbis";
-            case 5: return "PCM";
-            default: return "Unknown(" + codec + ")";
+            case 1: return "AMR_NB";
+            case 2: return "AMR_WB";
+            case 3: case 4: case 5: return "AAC"; // AAC/HE_AAC/AAC_ELD
+            case 6: return "VORBIS";
+            case 7: return "OPUS";
+            default: return "CODEC_" + codec;
         }
     }
 
