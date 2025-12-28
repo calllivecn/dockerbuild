@@ -331,7 +331,8 @@ public final class CameraServer {
         System.out.println("  tcp_port=<端口号>             : 设置 TCP 监听端口。默认值: " + TCP_PORT);
         System.out.println("  camera_id=<ID>              : 指定要使用的摄像头 ID (例如: 0 或 1)。默认自动选择后置摄像头。");
         System.out.println("  codec=<类型>                : 设置视频编码器类型 (例如: avc 或 hevc)。默认值: " + (MIME_TYPE.equals(MediaFormat.MIMETYPE_VIDEO_AVC) ? "avc (H.264)" : "hevc (H.265)"));
-        System.out.println("  rotate=<角度>               : 顺时针旋转视频角度 (0, 90, 180, 270)。默认值: " + ROTATE);
+        // 这完不用上GPU 很消耗CPU。先不管
+        // System.out.println("  rotate=<角度>               : 顺时针旋转视频角度 (0, 90, 180, 270)。默认值: " + ROTATE);
         System.out.println("  audio_sample_rate=<值>      : 设置音频采样率 (例如: 44100)。默认值: " + AUDIO_SAMPLE_RATE);
         System.out.println("  audio_channels=<值>         : 设置音频通道数 (1=单声道, 2=立体声)。默认值: " + AUDIO_CHANNELS);
         System.out.println("  audio_bit_rate=<值>         : 设置音频比特率 (单位: kbps)。默认值: " + (AUDIO_BIT_RATE / 1000) + " kbps");
