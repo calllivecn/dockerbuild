@@ -66,9 +66,9 @@ public final class CameraServer {
 
     // --- 音频参数 ---
     private static boolean ENABLE_AUDIO = true; // 是否录制音频，默认启用
-    private static int AUDIO_SAMPLE_RATE = 44100; // 采样率
-    private static int AUDIO_CHANNELS = 2; // 立体声
-    private static int AUDIO_BIT_RATE = 128000; // 128 kbps
+    private static int AUDIO_SAMPLE_RATE = 16000; // 采样率
+    private static int AUDIO_CHANNELS = 2; // 单声道 立体声
+    private static int AUDIO_BIT_RATE = 32000; // 64 kbps
 
     // --- 网络相关 ---
     private static int TCP_PORT = 58888; // 改为非 final
@@ -257,7 +257,7 @@ public final class CameraServer {
                 String codecStr = argMap.get("codec").toLowerCase();
                 if (codecStr.equals("hevc") || codecStr.equals("h265")) {
                     MIME_TYPE = MediaFormat.MIMETYPE_VIDEO_HEVC;
-                    System.out.println("参数: codec = " + codecStr + " (使用 HEVC/H.264 编码)。");
+                    System.out.println("参数: codec = " + codecStr + " (使用 HEVC/H.265 编码)。");
                 } else if (codecStr.equals("avc") || codecStr.equals("h264")) {
                     MIME_TYPE = MediaFormat.MIMETYPE_VIDEO_AVC;
                     System.out.println("参数: codec = " + codecStr + " (使用 AVC/H.264 编码)。");
@@ -333,7 +333,7 @@ public final class CameraServer {
         System.out.println("  codec=<类型>                : 设置视频编码器类型 (例如: avc 或 hevc)。默认值: " + (MIME_TYPE.equals(MediaFormat.MIMETYPE_VIDEO_AVC) ? "avc (H.264)" : "hevc (H.265)"));
         // 这完不用上GPU 很消耗CPU。先不管
         // System.out.println("  rotate=<角度>               : 顺时针旋转视频角度 (0, 90, 180, 270)。默认值: " + ROTATE);
-        System.out.println("  audio_sample_rate=<值>      : 设置音频采样率 (例如: 44100)。默认值: " + AUDIO_SAMPLE_RATE);
+        System.out.println("  audio_sample_rate=<值>      : 设置音频采样率 (例如: 16000)。默认值: " + AUDIO_SAMPLE_RATE);
         System.out.println("  audio_channels=<值>         : 设置音频通道数 (1=单声道, 2=立体声)。默认值: " + AUDIO_CHANNELS);
         System.out.println("  audio_bit_rate=<值>         : 设置音频比特率 (单位: kbps)。默认值: " + (AUDIO_BIT_RATE / 1000) + " kbps");
         System.out.println("\n示例:");
@@ -1095,7 +1095,7 @@ public final class CameraServer {
             }
             */
             
-            sendVideoConfigData(data);
+            sendVideoConfigData(data, info.presentationTimeUs);
 
             return;
         }
@@ -1123,15 +1123,13 @@ public final class CameraServer {
         }
         */
 
-        long pts = info.presentationTimeUs; // 获取时间戳
-
         // sendVideoFrame(annexb, pts, isKeyFrame);
-        sendVideoFrame(data, pts, isKeyFrame);
+        sendVideoFrame(data, info.presentationTimeUs, isKeyFrame);
 
     }
 
     // 发送配置数据 H.264(SPS/PPS) H.265(VPS/SPS/PPS)
-    private void sendVideoConfigData(byte[] config) {
+    private void sendVideoConfigData(byte[] config, long pts) {
         // 构造配置数据包头：type(2字节) + data_len(4字节) + pts(8字节) + data
         short configType = (short)101; // 101=配置数据
         int configDataLen = config.length;
@@ -1141,7 +1139,7 @@ public final class CameraServer {
         header.order(ByteOrder.BIG_ENDIAN); // 显式指定网络字节序
         header.putShort(configType);
         header.putInt(configDataLen);
-        header.putLong(0);
+        header.putLong(pts);
 
         // 发送配置数据包 - 放入TCP发送队列
         try {
@@ -1221,6 +1219,9 @@ public final class CameraServer {
         MediaFormat audioFormat = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, AUDIO_SAMPLE_RATE, AUDIO_CHANNELS);
         audioFormat.setInteger(MediaFormat.KEY_BIT_RATE, AUDIO_BIT_RATE);
         audioFormat.setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC);
+        // 必须设置最大输入大小，否则部分设备会 crash
+        // audioFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, bufferSize * 2);
+        audioFormat.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 8192);
 
         mAudioCodec.configure(audioFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
         System.out.println("✓ 音频编码器配置完成");
