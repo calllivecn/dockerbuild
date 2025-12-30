@@ -1393,7 +1393,7 @@ public final class CameraServer {
             buffer.position(info.offset);
             buffer.get(mAudioConfigData);
             System.out.println("[音频] 已缓存音频配置数据，大小: " + mAudioConfigData_len);
-            sendAudioFrame(mAudioConfigData, 0, AudioConfig);
+            sendAudioFrame(mAudioConfigData, info.presentationTimeUs, AudioConfig);
             return;  // 配置数据本身不发送，后面会在每个音频帧中附加
         }
 
