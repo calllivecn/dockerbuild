@@ -11,5 +11,4 @@ bash build.sh
 
 ## 注意事项，在构建时可能需要代理
 
-- podman build -t ollama  ...
 
