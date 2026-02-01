@@ -20,6 +20,7 @@ import android.media.MediaFormat;
 import android.media.MediaRecorder;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.Build;
 import android.os.Looper;
 import android.util.Size;
 import android.util.Range;
@@ -635,6 +636,47 @@ public final class CameraServer {
         format.setInteger(MediaFormat.KEY_BIT_RATE, BIT_RATE);
         format.setInteger(MediaFormat.KEY_FRAME_RATE, FPS);
         format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, I_FRAME_INTERVAL);
+
+        // 假设 format 已经通过 MediaFormat.createVideoFormat 创建
+        // --- 1. KEY_PRIORITY (优先级) ---
+        // 该常量在 API 21 引入，Android 9 (API 28) 及以上版本可直接使用
+        // 0 表示实时优先级，告知系统尽量减少调度延迟
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            format.setInteger(MediaFormat.KEY_PRIORITY, 0);
+        }
+
+        // --- 2. KEY_OPERATING_RATE (运行帧率) ---
+        // 该常量在 API 21 引入
+        // 告知编码器期望的运行频率。设置与帧率一致或更高，防止硬编模块进入省电降频模式
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            format.setInteger(MediaFormat.KEY_OPERATING_RATE, FPS);
+            // 某些极端低延迟场景下，开发者会设置 Short.MAX_VALUE，
+            // 但 30-60 已经足够让硬件处于活跃状态
+        }
+
+        // --- 3. KEY_LOW_LATENCY (低延迟模式) ---
+        // 官方常量 KEY_LOW_LATENCY 是在 Android 11 (API 30) 引入的
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            // API 30+ 使用官方标准常量
+            format.setInteger(MediaFormat.KEY_LOW_LATENCY, 1);
+        } else {
+            // Android 9 (API 28) 和 Android 10 (API 29)
+            // 很多厂商（如高通、三星）支持通过字符串 "latency" 开启底层低延迟模式
+            format.setInteger("latency", 1);
+        }
+
+        // --- 附加建议：KEY_MAX_B_FRAMES (B 帧控制) ---
+        // 既然是监控场景，这个参数对兼容性至关重要
+        /*
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            // Android 10+ 官方支持
+            format.setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0);
+        } else {
+            // Android 9 使用字符串尝试关闭
+            format.setInteger("max-bframes", 0);
+        }
+        */
+
         System.out.println("MediaCodec 配置: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT + " @ " + FPS + "fps, bitrate=" + BIT_RATE);
 
         mMediaCodec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE); // 修正 configure 调用
