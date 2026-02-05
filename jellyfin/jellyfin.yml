@@ -1,0 +1,29 @@
+version: "3"
+
+# 镜像里本身自带了vainfo了，和ffmpeg在同一目录下。/usr/lib/jellyfin-ffmpeg/vainfo
+
+services:
+  jellyfin:
+    #image: docker.io/jellyfin/jellyfin:2025120105
+    image: localhost/jellyfin:latest
+    container_name: jellyfin
+    user: ${UID}:${GROUPS}
+    restart: unless-stopped
+    network_mode: host
+    #ports:
+      #- 8096:8096
+    volumes:
+      - ${HOME}/.containers/jellyfin/config:/config
+      - ${HOME}/.volumes/jellyfin/cache:/cache
+      - ${HOME}/video:/media
+      - /mnt/data/aliyundrive-videos/:/media2
+        #- /usr/lib/x86_64-linux-gnu/dri/iHD_drv_video.so:/usr/lib/x86_64-linux-gnu/dri/iHD_drv_video.so
+        #- /usr/share/fonts/:/usr/local/share/fonts:ro
+        #- /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc:/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc:ro
+    #privileges: true
+    devices:
+      #- /dev/dri/card0:/dev/dri/card0
+      - /dev/dri/renderD128:/dev/dri/renderD128
+    #group-add:
+    #  - video
+    #  - render
