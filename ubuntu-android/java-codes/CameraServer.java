@@ -325,7 +325,7 @@ public final class CameraServer {
         System.out.println("  enable_video=<true|false>   : 启用或禁用视频录制 (默认: true)。");
         System.out.println("  enable_audio=<true|false>   : 启用或禁用音频录制 (默认: true)。");
         System.out.println("  fps=<值>                     : 设置视频帧率 (例如: 30)。默认值: " + FPS);
-        System.out.println("  i_frame_interval=<值>       : 设置 I 帧间隔 (秒)。默认值: " + I_FRAME_INTERVAL);
+        System.out.println("  i_frame_interval=<值>       : 设置 I帧(关键帧)间隔 (秒)。默认值: " + I_FRAME_INTERVAL);
         System.out.println("  bit_rate=<值>               : 设置视频比特率 (例如: 2)。单位 Mbps。默认值: " + BIT_RATE + "Mbps");
         System.out.println("  size=<宽度>x<高度>          : 设置视频分辨率 (例如: 1920x1080)。默认值: " + VIDEO_WIDTH + "x" + VIDEO_HEIGHT);
         System.out.println("  tcp_addr=<地址>               : 设置 TCP 监听地址。默认值: " + TCP_HOST);
