@@ -4,8 +4,9 @@ services:
   ollama:
     image: localhost/ubuntu-ollama-cuda:latest
     container_name: ollama
-    ports:
-      - 11434:11434
+    network_mode: host
+      #ports:
+      #  - 11434:11434
     environment:
       - OLLAMA_HOST=0.0.0.0:11434
     command:
@@ -29,28 +30,29 @@ services:
       - /usr/lib/x86_64-linux-gnu/libnvidia-opencl.so.1:/usr/lib/x86_64-linux-gnu/libnvidia-opencl.so.1
       - /usr/lib/x86_64-linux-gnu/libnvidia-ptxjitcompiler.so:/usr/lib/x86_64-linux-gnu/libnvidia-ptxjitcompiler.so:ro
       - /usr/lib/x86_64-linux-gnu/libnvidia-ptxjitcompiler.so.1:/usr/lib/x86_64-linux-gnu/libnvidia-ptxjitcompiler.so.1:ro
-    networks:
-      - ollama
+        #networks:
+        #- ollama
 
   openwebui:
     image: ghcr.io/open-webui/open-webui:main
     container_name: open-webui
-    ports:
-      - "8080:8080"
+    network_mode: host
+      #ports:
+      #- "8080:8080"
     volumes:
       - ${HOME}/.volumes/open-webui:/app/backend/data
     environment:
-      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_BASE_URL=http://10.1.3.20:11434
       - HF_HUB_OFFLINE=1
-    networks:
-      - ollama
     depends_on:
       - ollama
+        #networks:
+        #  - ollama
 
 #volumes:
 #  ollama:
 #  ollama-webui:
 #    external: true
 
-networks:
-  ollama:
+#networks:
+#  ollama:
