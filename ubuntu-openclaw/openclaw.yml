@@ -1,0 +1,16 @@
+version: "3"
+
+services:
+  openclaw:
+    #image: ghcr.io/openclaw/openclaw:latest
+    image: ubuntu-openclaw:latest
+    container_name: openclaw
+    restart: unless-stopped
+      #environment:
+      #  GATEWAY_TOKEN: opencalw@linux
+    network_mode: host
+    command: openclaw gateway run
+    volumes:
+      #- ${HOME}/.volumes/openclaw:/home/node/
+      - ${HOME}/.volumes/openclaw:/root/
+
