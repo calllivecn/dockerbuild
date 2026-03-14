@@ -12,3 +12,6 @@ bash build.sh
 ## 注意事项，在构建时可能需要代理
 
 
+- podman run -it --rm ubuntu-ollama-cuda:latest ollama -v
+- 查看版本号后，加上版本号tag
+

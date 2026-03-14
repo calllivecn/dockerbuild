@@ -29,6 +29,7 @@ sshkey.pub
 *.xz
 *.zip
 *.bz2
+*.zst
 *.swp
 *.pyz
 *.deb
