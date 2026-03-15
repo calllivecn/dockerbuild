@@ -2,7 +2,7 @@ FROM ubuntu:latest
 
 # 1. 换源
 # 2. 配置默认时区
-# 3. 安装CJK字体和 locales
+# 3. 安装locales (字体是容器里需要渲染时才需要)
 
 
 # 使用清华源
@@ -22,5 +22,7 @@ RUN sed -i -e "s#archive.ubuntu.com#mirrors.tuna.tsinghua.edu.cn#g" -e "s#securi
 && apt clean \
 && rm -rf /var/lib/apt/lists
 
-ENV LANG zh_CN.UTF-8
+ENV LANG=zh_CN.UTF-8 \
+    LANGUAGE=zh_CN:zh \
+    LC_ALL=zh_CN.UTF-8
 
