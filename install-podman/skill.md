@@ -24,3 +24,8 @@ Delegate=memory pids cpu cpuset
 
 - ！root 用户的默认就在：/run/podman/podman.sock
 
+
+## 为普通用户启用 /run/user/<user id>/podman/podman.sock
+
+- systemctl --user enable --now podman.socket
+
