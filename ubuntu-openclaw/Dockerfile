@@ -12,6 +12,9 @@ FROM ubuntu-devel:latest
 #&& npm config -g set registry https://mirrors.tuna.tsinghua.edu.cn/npm/ \
 #&& npm config -g get registry \
 
+RUN apt -y update \
+&& apt -y install tmux ffmpeg
+
 ARG https_proxy
 
 RUN curl -fsSL https://openclaw.ai/install.sh | bash -s -- --no-onboard

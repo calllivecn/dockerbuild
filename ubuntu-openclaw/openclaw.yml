@@ -6,10 +6,11 @@ services:
     image: ubuntu-openclaw:latest
     container_name: openclaw
     restart: unless-stopped
-      #environment:
+    #restart: always
+    #environment:
       #  GATEWAY_TOKEN: opencalw@linux
     network_mode: host
-    command: openclaw gateway run
+    command: openclaw gateway
     volumes:
       #- ${HOME}/.volumes/openclaw:/home/node/
       - ${HOME}/.volumes/openclaw:/root/
