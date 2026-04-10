@@ -1,6 +1,6 @@
-ARG IMAGE_TAG
+ARG IMAGE_TAG=latest
 
-FROM docker.io/jellyfin/jellyfin:${IMAGE_TAG}
+FROM ghcr.io/jellyfin/jellyfin:${IMAGE_TAG}
 
 RUN sed -i 's/main$/main contrib non-free non-free-firmware/' /etc/apt/sources.list.d/debian.sources \
 && apt -y update \
