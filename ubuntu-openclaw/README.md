@@ -1,12 +1,17 @@
 # ubuntu-openclaw:latest 
 
-- 直接安装
+- 下载node 包: https://nodejs.org/en/download/current
+
+- 安装
 
 ```bash
 ~~bash build.sh~~
 
-podman build --build-arg https_proxy="http://[fc03::1]:10003" -t ubuntu-openclaw .
+# 第一步
+podman build -f Dockerfile-base -t ubuntu-openclaw-base .
 
+# 第二步
+podman build -f Dockerfile-download --build-arg https_proxy="http://[fc03::1]:10003" -t ubuntu-openclaw .
 ```
 
 

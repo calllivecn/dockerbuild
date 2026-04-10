@@ -1,23 +1,5 @@
-FROM ubuntu-devel:latest
+FROM ubuntu-openclaw-base:latest
 
-ARG node_version=v24.14.1 
-#openclaw_version=2026.4.1
+RUN npm install -g openclaw --registry https://registry.npmjs.org
 
-
-ADD node-${node_version}-linux-x64.tar.xz /usr/local/
-#ADD  OpenClaw-${openclaw_version}.zip /usr/local/
-
-#RUN wget -O /tmp/node.tar.xz https://nodejs.org/dist/v${node_version}/node-v${node_version}-linux-x64.tar.xz \
-#&& tar -xf /tmp/node.tar.xz -C /tmp/ \
-#&& rm -v /tmp/node.tar.xz \
-#&& cd /tmp/node-${node_version}-linux-x64/ \
-
-RUN apt -y update \
-&& apt -y install tmux ffmpeg \
-&& cd /usr/local/node-${node_version}-linux-x64/ \
-&& cp -av . /usr/local/ \
-&& npm cache verify \
-&& npm config -g set registry https://mirrors.tuna.tsinghua.edu.cn/npm/ \
-&& npm config -g get registry \
-&& npm install -g openclaw --registry https://registry.npmjs.org
 
