@@ -1,3 +1,2 @@
 alibabacloud-alidns20150109==4.4.1
 certbot==5.5.0
-pyinstaller==6.20.0
