@@ -1,1 +1,1 @@
-../ddns/aliyunlib.py
+../ddns/src/aliyunlib.py
