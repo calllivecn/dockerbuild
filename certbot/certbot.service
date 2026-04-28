@@ -1,8 +1,7 @@
 [Unit]
 Description=certbot 定时任务 HOME: %h
 
-
 [Service]
 EnvironmentFile=-%h/.certbot/http.proxy
-ExecStart=%h/.certbot/certbot.pyz renew --config-dir . --work-dir . --logs-dir logs/
+ExecStart=%h/.certbot/venv/bin/python %h/.certbot/venv/bin/certbot renew --config-dir . --work-dir . --logs-dir logs/
 WorkingDirectory=%h/.certbot/
