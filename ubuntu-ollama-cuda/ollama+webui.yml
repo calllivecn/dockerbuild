@@ -10,7 +10,7 @@ services:
     environment:
       - OLLAMA_HOST=0.0.0.0:11434
       - OLLAMA_FLASH_ATTENTION=1
-      - LLAMA_KV_CACHE_TYPE=q4_0
+      #- LLAMA_KV_CACHE_TYPE=q4_0
     command:
       - ollama
       - serve
