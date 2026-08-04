@@ -20,6 +20,10 @@ from pathlib import Path
 from urllib import (
     error,
 )
+from urllib.parse import (
+    urlparse,
+    parse_qs,
+)
 from threading import (
     Thread,
 )
@@ -122,6 +126,7 @@ logger.debug(f"SERVER_URL: {SERVER_URL}")
 
 # v2ray path
 V2RAY_PATH = Path(os.environ.get("V2RAY_PATH", "/v2ray"))
+V2RAY_CORE = Path(os.environ.get("V2RAY_CORE", "v2ray"))
 
 # 多久更新一次 unit hour
 UPDATE_INTERVAL = int(os.environ.get("UPDATE_INTERVAL", "3"))
@@ -241,10 +246,50 @@ def decode_subscription(context):
             else:
                 proxys["vmess"] = [json.loads(vmess)]
 
+        elif url.startswith(b"vless://"):
+            try:
+                info = parse_vless(url)
+            except Exception:
+                logger.error(f"Error: parse_vless() --> {url}")
+                continue
+
+            if proxys.get("vless"):
+                proxys["vless"].append(info)
+            else:
+                proxys["vless"] = [info]
+
         else:
             logger.warning(f"未知协议: {url}")
 
     return proxys
+
+
+def parse_vless(url: bytes) -> dict:
+    url_str = url.decode("utf-8")
+    p = urlparse(url_str)
+    q = {k: v[0] if isinstance(v, list) else v for k, v in parse_qs(p.query).items()}
+
+    return {
+        "protocol": "vless",
+        "ps": p.fragment or "",
+        "add": p.hostname or "",
+        "port": str(p.port) if p.port else "443",
+        "id": p.username or "",
+        "encryption": q.get("encryption", "none"),
+        "flow": q.get("flow", ""),
+        "security": q.get("security", ""),
+        "network": q.get("type", "tcp"),
+        "sni": q.get("sni", ""),
+        "path": q.get("path", ""),
+        "host": q.get("host", ""),
+        "fp": q.get("fp", ""),
+        "pbk": q.get("pbk", ""),
+        "sid": q.get("sid", ""),
+        "spx": q.get("spx", ""),
+        "headerType": q.get("headerType", ""),
+        "mode": q.get("mode", ""),
+        "serviceName": q.get("serviceName", ""),
+    }
 
 
 @runtime("测试单个链接速度")
@@ -291,32 +336,100 @@ def updatecfg(vmess_json):
 
     outbounds = []
     s801 = {}
-    for _delay, vmess in vmess_json:
-        v = {
-            "protocol": "vmess",
-            "settings": {
-                "vnext": [
-                    {
-                        "address": vmess["add"],
-                        "port": int(vmess["port"]),
-                        "users": [
-                            {
-                                "id": vmess["id"],
-                                "alterId": vmess["aid"]
-                            }
-                        ]
-                    }
-                ]
-            }
-        }
+    for _delay, node in vmess_json:
+        protocol = node.get("protocol", "vmess")
 
-        if is_s801(vmess["ps"]):
+        if protocol == "vless":
+            security = node.get("security", "")
+
+            v = {
+                "protocol": "vless",
+                "settings": {
+                    "vnext": [
+                        {
+                            "address": node["add"],
+                            "port": int(node["port"]),
+                            "users": [
+                                {
+                                    "id": node["id"],
+                                    "encryption": node.get("encryption", "none"),
+                                    "flow": node.get("flow", ""),
+                                }
+                            ],
+                        }
+                    ],
+                },
+                "streamSettings": {},
+            }
+
+            network = node.get("network", "tcp")
+            v["streamSettings"]["network"] = network
+            v["streamSettings"]["security"] = security
+
+            if security == "tls":
+                v["streamSettings"]["tlsSettings"] = {}
+                if node.get("sni"):
+                    v["streamSettings"]["tlsSettings"]["serverName"] = node["sni"]
+
+            elif security == "reality":
+                v["streamSettings"]["realitySettings"] = {
+                    "fingerprint": node.get("fp", "chrome"),
+                    "serverName": node.get("sni", ""),
+                    "publicKey": node.get("pbk", ""),
+                    "shortId": node.get("sid", ""),
+                    "spiderX": node.get("spx", "/"),
+                }
+
+            if network == "ws":
+                v["streamSettings"]["wsSettings"] = {}
+                if node.get("path"):
+                    v["streamSettings"]["wsSettings"]["path"] = node["path"]
+                if node.get("host"):
+                    v["streamSettings"]["wsSettings"]["headers"] = {"Host": node["host"]}
+
+            if network == "grpc":
+                v["streamSettings"]["grpcSettings"] = {}
+                if node.get("serviceName"):
+                    v["streamSettings"]["grpcSettings"]["serviceName"] = node["serviceName"]
+                if node.get("mode"):
+                    v["streamSettings"]["grpcSettings"]["multiMode"] = node["mode"] == "multi"
+
+            if network == "tcp" and node.get("headerType"):
+                v["streamSettings"]["tcpSettings"] = {
+                    "header": {"type": node["headerType"]}
+                }
+
+        else:
+            v = {
+                "protocol": "vmess",
+                "settings": {
+                    "vnext": [
+                        {
+                            "address": node["add"],
+                            "port": int(node["port"]),
+                            "users": [
+                                {
+                                    "id": node["id"],
+                                    "alterId": node["aid"],
+                                }
+                            ],
+                        }
+                    ],
+                },
+            }
+
+        if is_s801(node["ps"]):
             v["tag"] = "vmess-out-x10"
             s801 = v
         else:
             outbounds.append(v)
 
-    outbounds.append(s801)
+    if s801:
+        outbounds.append(s801)
+
+    if not outbounds:
+        logger.warning("没有可用节点写入配置")
+        return
     V2RAY_CONFIG_JSON["outbounds"] = outbounds
 
     V2RAY_CONFIG_JSON["log"]["access"] = str(LOGS_PATH / "access.log")
@@ -343,16 +456,12 @@ class v2ray_manager:
 
     def v2ray(self, config: Path):
 
-        # v4.xx.x
-        #subproc = subprocess.run(f"/v2ray/v2ray -config {config}".split())
-
         # v5.0.x
-        p = V2RAY_PATH / "v2ray"
+        p = V2RAY_PATH / V2RAY_CORE
         if p.exists():
             self.subproc = subprocess.Popen([str(p), "run"], cwd=V2RAY_PATH)
         else:
-            self.subproc = subprocess.Popen(["/v2ray/v2ray", "run"], cwd=V2RAY_PATH)
-
+            raise ValueError(f"没有找到执行核心: {p}")
 
     def reboot(self):
         logger.info("发送重启信号...")
@@ -438,7 +547,12 @@ class JustMySock:
 
     def test_speed(self):
         self.proxys = decode_subscription(self.server_info)
-        speed_sorted = test_connect_speed_thread(self.proxys["vmess"])
+        nodes = []
+        if "vmess" in self.proxys:
+            nodes.extend(self.proxys["vmess"])
+        if "vless" in self.proxys:
+            nodes.extend(self.proxys["vless"])
+        speed_sorted = test_connect_speed_thread(nodes)
         logger.info("测试连接延时:\n" + pprint.pformat(speed_sorted))
         if len(speed_sorted) == 0:
             logger.info("没有连接...")

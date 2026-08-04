@@ -5,7 +5,8 @@ FROM alpine-py3:latest
 # 直接 -v <v2ray_dir>:/v2ray 挂载方式
 
 COPY app/ /app
-COPY v2ray/ /v2ray
+#COPY v2ray/ /v2ray
+COPY xray/ /xray
 
 RUN pip install --break-system-packages httpx[http2,socks]==0.28.1 \
 && mkdir -vp /logs
