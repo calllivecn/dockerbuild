@@ -15,6 +15,7 @@ podman run -d --name v2ray -p <http_proxy port>:9999 -p <socks5_proxy port>:1000
 - API_COUNTER: 流量使用情况
 - UPDATE_INTERVAL: 更新间隔时间（小时, default: 3）
 - V2RAY_PATH: 解压的v2ray.zip 目录。（default: /v2ray/）
+- V2RAY_CORE: 执行文件。（default: v2ray）
 - CHECK_URL: 代理存活检测地址。
 - LOGS_PATH: 日志目录。（default: /logs/）
 - ~~SKIP_CA: 不检查ca~~
