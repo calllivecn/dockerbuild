@@ -1,5 +1,0 @@
-FROM ubuntu-openclaw-base:latest
-
-RUN npm install -g openclaw --registry https://registry.npmjs.org
-
-
