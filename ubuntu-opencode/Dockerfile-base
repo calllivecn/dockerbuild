@@ -1,0 +1,5 @@
+FROM ubuntu-devel:latest
+
+RUN apt -y update \
+&& apt -y install vim git python3-pip
+
