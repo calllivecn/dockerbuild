@@ -419,7 +419,7 @@ def updatecfg(vmess_json):
             }
 
         if is_s801(node["ps"]):
-            v["tag"] = "vmess-out-x10"
+            v["tag"] = "output-x10"
             s801 = v
         else:
             outbounds.append(v)

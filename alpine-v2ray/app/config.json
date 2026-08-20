@@ -6,47 +6,24 @@
     },
     "inbounds": [
         {
+            "listen": "::",
             "port": 9999,
-            "protocol": "http",
-            "sniffing": {
-                "enabled": true,
-                "destOverride": ["http", "tls"]
-            },
+            "protocol": "mixed",
             "settings": {
-                "auth": "noauth"
+                "auth": "noauth",
+                "udp": true,
+                "ip": "::"
             }
         },
         {
+            "tag": "input-x10",
+            "listen": "::",
             "port": 10000,
-            "protocol": "socks",
-            "sniffing": {
-                "enabled": true,
-                "destOverride": ["http", "tls"]
-            },
+            "protocol": "mixed",
             "settings": {
-                "auth": "noauth"
-            }
-        },
-        {   "tag": "http-x10",
-            "port": 10001,
-            "protocol": "http",
-            "sniffing": {
-                "enabled": true,
-                "destOverride": ["http", "tls"]
-            },
-            "settings": {
-                "auth": "noauth"
-            }
-        },
-        {   "tag": "socks-x10",
-            "port": 10002,
-            "protocol": "socks",
-            "sniffing": {
-                "enabled": true,
-                "destOverride": ["http", "tls"]
-            },
-            "settings": {
-                "auth": "noauth"
+                "auth": "noauth",
+                "udp": true,
+                "ip": "::"
             }
         }
     ],
@@ -93,10 +70,9 @@
           {   
             "type": "Field",
             "inboundTag": [
-              "http-x10",
-              "socks-x10"
+              "input-x10"
             ],
-            "outboundTag": "vmess-out-x10"
+            "outboundTag": "output-x10"
           }
         ]
     }
