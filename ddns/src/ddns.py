@@ -124,11 +124,9 @@ class SelfIPCache:
             json.dump(self.cache, f)
 
 
-    def is_file(self):
-        if self.filepath.is_file():
-            return True
-        else:
-            return False
+    def is_file(self) -> bool:
+        return self.filepath.is_file()
+
 
 ip_dnsid_cache = SelfIPCache()
 
@@ -252,7 +250,7 @@ def update_dns(alidns: AliDDNS, rr, typ, domain, ip):
     return: False or dns_record_id 
     """
 
-    dns = ".".join([rr, domain])
+    dns = f"{rr}.{domain}"
 
     result = alidns.describe_sub_domain(dns, typ)
 
