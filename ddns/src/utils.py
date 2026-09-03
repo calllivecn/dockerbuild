@@ -97,26 +97,6 @@ def check_ipv6_network_reserved(ipv6: str):
     
     return False
 
-def get_self_ipv6():
-    """
-    这样可以拿到， 默认出口ip。
-    不过ipv6拿到的是临时动态地址。 直接做ddns, ~~会频繁更新。~~ 不会频繁更新。
-    """
-    while True:
-        sock = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
-        sock.connect(("2400:3200:baba::1", 2022))
-        addr = sock.getsockname()[0]
-        sock.close()
-
-        if check_ipv6_network_reserved(addr):
-            time.sleep(1)
-        else:
-            break
-
-    logger.debug(addr)
-    return addr
-
-
 def readcfg2(f: Path, cfg: str) -> dict:
     if f.exists() and f.is_file():
         with open(f, "rb") as fp:
@@ -149,8 +129,7 @@ class DDNSPacket:
         if not isinstance(self.secret, str) or len(self.secret) == 0:
             raise ValueError("secret must be a non-empty string.")
 
-        if self.ip != "":
-            if not isinstance(self.ip, str) or not self.is_valid_ip(self.ip):
+        if self.ip != "" and (not isinstance(self.ip, str) or not self.is_valid_ip(self.ip)):
                 raise ValueError("ip must be a valid IPv4 or IPv6 address.")
 
     @staticmethod
@@ -254,9 +233,6 @@ class Request:
         """
         sha256 = hashlib.sha256(self.__buf + secret.encode("ascii"))
 
-        if buf == sha256.digest():
-            return True
-        else:
-            return False
+        return buf == sha256.digest()
 
 

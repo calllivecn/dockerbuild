@@ -14,6 +14,7 @@ from threading import Thread
 
 from typing import Any
 
+
 from aliyunlib import AliDDNS
 from utils import (
     PWD,
@@ -247,7 +248,7 @@ class IPv6UDPServer:
 
 def update_dns(alidns: AliDDNS, rr, typ, domain, ip):
     """
-    return: False or dns_record_id 
+    return: False or dns_record_id
     """
 
     dns = f"{rr}.{domain}"
@@ -402,8 +403,8 @@ def main():
         logger.debug("服务端启动完成...")
         try:
             th_server.join()
-        except Exception as e:
-            logging.error(f"服务端异常(5秒后重启)：{e}")
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"服务端异常(5秒后重启)：{pprint.pformat(e)}")
             time.sleep(5)
 
 if __name__ == '__main__':

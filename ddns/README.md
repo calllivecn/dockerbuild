@@ -3,7 +3,7 @@
 ## 目前只支持aliyun dns + ipv6 记录
 
 - 默认使用 pyinstaller 打包。 ddnsclient.py 可以不打包(看看那种方便)
-- 可以支持一个 ip 更新时，更新多个域名(多个域名指定同一ip)。
+- 可以支持一个 ip 更新时，更新多个域名(多个域名指定同一ip, 也不使用。使用DNS 的 CNAME功能替代)。
 
 ## ddns 服务器，只支持 linux。
 
