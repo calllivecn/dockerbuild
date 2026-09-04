@@ -1,3 +1,4 @@
 alibabacloud-alidns20150109==3.6.0
 tomli >= 1.1.0;python_version < "3.11"
 pyroute2==0.9.4
+quart==0.20.0

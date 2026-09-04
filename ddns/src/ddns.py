@@ -10,6 +10,7 @@ import socket
 import pprint
 import logging
 import argparse
+import ipaddress
 from threading import Thread
 
 from typing import Any
@@ -23,9 +24,11 @@ from utils import (
     Request,
     readcfg2,
     DDNSPacketError,
+    verify_https_signature,
 )
 import logs
 from logs import logger
+from quart import Quart, jsonify, request
 
 CONF="""\
 [Ali]
@@ -38,6 +41,18 @@ Address="::"
 Port=2022
 # server 的 secret
 Secret="xxxxxxxxxxxxxxxxxxxxxxxxx"
+
+[Http]
+Enabled=true
+Address="::"
+Port=8080
+
+[Https]
+Enabled=false
+Address="::"
+Port=8443
+CertFile="/path/to/server.crt"
+KeyFile="/path/to/server.key"
 
 [[Clients]]
 # 其他轻客户端的UUID (预计使用很少的 bash 就可以实现; bash 不行，不能接收UDP数据包。。。还是需要用golang和py写)
@@ -173,6 +188,18 @@ class Conf:
         self.server_port = Server["Port"]
         self.server_secret = Server["Secret"]
 
+        http = self.conf.get("Http", {})
+        self.http_enabled = http.get("Enabled", True)
+        self.http_addr = http.get("Address", "::")
+        self.http_port = http.get("Port", 8080)
+
+        https = self.conf.get("Https", {})
+        self.https_enabled = https.get("Enabled", False)
+        self.https_addr = https.get("Address", "::")
+        self.https_port = https.get("Port", 8443)
+        self.https_cert = https.get("CertFile", "")
+        self.https_key = https.get("KeyFile", "")
+
         # self.self_domain_name = self.conf["SelfDomainName"]
         # self.server_interval = self.self_domain_name["Interval"]
         
@@ -306,6 +333,20 @@ def multi_update_dns(alidns: AliDDNS, multidns: list, ip: str):
         update_dns(alidns, info["RR"], info["Type"], info["Domain"], ip)
 
 
+def process_update(conf: Conf, alidns: AliDDNS, client_id: int, ip: str) -> int:
+    """统一处理 UDP 和 HTTPS 请求，返回 0/1/2/3 状态码。"""
+    result = conf.client_cache.get(client_id)
+    if result is None:
+        return 1
+
+    c_check = conf.cache_check(client_id, ip)
+    if c_check == 0:
+        domains = conf.get_multidns_info(client_id)["multidns"]
+        th = Thread(target=multi_update_dns, args=(alidns, domains, ip), daemon=True)
+        th.start()
+    return c_check
+
+
 def server(conf: Conf):
 
     logger.debug(f"server listen: [{conf.server_addr}]:{conf.server_port}")
@@ -341,21 +382,13 @@ def server(conf: Conf):
             if client_secret is not None and req.verify(client_secret):
 
                 logger.debug(f"Cache={conf.client_cache}")
-                c_check = conf.cache_check(req.id_client, dns_ip)
+                c_check = process_update(conf, alidns, req.id_client, dns_ip)
 
                 if c_check == 0:
 
                     # 回复client ACK
                     logger.debug("回复ACK")
                     sock.send(req.ack(conf.server_secret), addr)
-
-                    domains = conf.get_multidns_info(req.id_client)["multidns"]
-                    domain_tmp = ".".join([domains[0]["RR"], domains[0]["Domain"]])
-                    logger.debug(f"接收到请求: ClientID={req.id_client} domain={domain_tmp} {addr_ip=}")
-
-                    # 使用线程更新
-                    th = Thread(target=multi_update_dns, args=(alidns, domains, dns_ip), daemon=True)
-                    th.start()
 
                 elif c_check == 1:
                     logger.warning(f"没有对应的: ClientID={req.id_client} {addr_ip=}")
@@ -370,6 +403,69 @@ def server(conf: Conf):
 
             else:
                 logger.warning(f"请求验证失败，可能有人在探测: {addr_ip=}")
+
+
+def server_worker(conf: Conf):
+    while True:
+        try:
+            server(conf)
+        except Exception as e:  # noqa: BLE001
+            logger.error(f"服务端异常(5秒后重启)：{pprint.pformat(e)}")
+            time.sleep(5)
+
+
+def create_api_app(conf: Conf, alidns: AliDDNS) -> Quart:
+    app = Quart(__name__)
+
+    @app.post("/api/v1/update")
+    async def https_update():
+        data = await request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify(ok=False, message="invalid JSON"), 400
+
+        try:
+            client_id = data["client_id"]
+            timestamp = data["timestamp"]
+            ip = data.get("ip", "")
+            signature = data["signature"]
+            if not isinstance(client_id, int) or not isinstance(timestamp, int):
+                raise ValueError
+            if not isinstance(ip, str) or not isinstance(signature, str):
+                raise ValueError
+        except (KeyError, ValueError, TypeError):
+            return jsonify(ok=False, message="invalid request"), 400
+
+        try:
+            client_cfg = conf.get_multidns_info(client_id)
+        except KeyError:
+            return jsonify(ok=False, message="unknown client"), 404
+
+        if abs(int(time.time()) - timestamp) > 60:
+            return jsonify(ok=False, message="timestamp expired"), 401
+
+        if ip:
+            try:
+                ipaddress.ip_address(ip)
+            except ValueError:
+                return jsonify(ok=False, message="invalid IP"), 400
+        else:
+            ip = request.remote_addr or ""
+
+        if not verify_https_signature(client_id, timestamp, data.get("ip", ""), signature, client_cfg["Secret"]):
+            return jsonify(ok=False, message="invalid signature"), 401
+
+        if not ip:
+            return jsonify(ok=False, message="IP is required"), 400
+
+        status = process_update(conf, alidns, client_id, ip)
+        messages = {0: "accepted", 2: "too frequent", 3: "IP unchanged"}
+        if status == 1:
+            return jsonify(ok=False, message="unknown client"), 404
+        if status == 2:
+            return jsonify(ok=False, message=messages[status]), 429
+        return jsonify(ok=True, message=messages.get(status, "accepted"))
+
+    return app
 
 
 def main():
@@ -395,17 +491,21 @@ def main():
         logger.setLevel(logging.DEBUG)
 
     conf = Conf()
+    alidns = AliDDNS(conf.ali_keyid, conf.ali_keysecret)
 
-    # 有时刚好在网络变化时，回复时可以能会有问题
-    while True:
-        th_server = Thread(target=server, args=(conf,), daemon=True, name="Server")
-        th_server.start()
-        logger.debug("服务端启动完成...")
-        try:
-            th_server.join()
-        except Exception as e:  # noqa: BLE001
-            logger.error(f"服务端异常(5秒后重启)：{pprint.pformat(e)}")
-            time.sleep(5)
+    if not conf.http_enabled and not conf.https_enabled:
+        parse.error("Http.Enabled 和 Https.Enabled 不能同时为 false")
+
+    if conf.https_enabled:
+        if not conf.https_cert or not conf.https_key:
+            parse.error("启用 HTTPS 时必须配置 Https.CertFile 和 Https.KeyFile")
+    Thread(target=server_worker, args=(conf,), daemon=True, name="Server").start()
+    app = create_api_app(conf, alidns)
+    if conf.https_enabled:
+        app.run(host=conf.https_addr, port=conf.https_port, certfile=conf.https_cert, keyfile=conf.https_key, use_reloader=False)
+    elif conf.http_enabled:
+        app.run(host=conf.http_addr, port=conf.http_port, use_reloader=False)
+    return
 
 if __name__ == '__main__':
     main()

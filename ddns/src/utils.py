@@ -10,6 +10,7 @@ import time
 import socket
 import struct
 import hashlib
+import hmac
 import logging
 import ipaddress
 from pathlib import Path
@@ -235,4 +236,14 @@ class Request:
 
         return buf == sha256.digest()
 
+
+def https_signature(client_id: int, timestamp: int, ip: str, secret: str) -> str:
+    """生成 HTTPS JSON 请求使用的可跨语言 HMAC 签名。"""
+    message = f"{client_id}\n{timestamp}\n{ip}".encode("utf-8")
+    return hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
+
+
+def verify_https_signature(client_id: int, timestamp: int, ip: str, signature: str, secret: str) -> bool:
+    expected = https_signature(client_id, timestamp, ip, secret)
+    return hmac.compare_digest(expected, signature)
 

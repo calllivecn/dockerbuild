@@ -26,6 +26,20 @@ Port=2022
 # server 的 secret
 Secret="xxxxxxxxxxxxxxxxxxxxxxxxx"
 
+# HTTP API（默认启用，适合由 Nginx 等反向代理提供 HTTPS）
+[Http]
+Enabled=true
+Address="::"
+Port=8080
+
+# 直接提供 HTTPS（可选；启用后使用 HTTPS 监听 HTTP API）
+[Https]
+Enabled=false
+Address="::"
+Port=8443
+CertFile="/path/to/server.crt"
+KeyFile="/path/to/server.key"
+
 [[Clients]]
 # 其他轻客户端的UUID (预计使用很少的 bash 就可以实现; bash 不行，不能接收UDP数据包。。。还是需要用golang和py写)
 # 范围：1 ~ 4字节 无符号
@@ -41,4 +55,3 @@ Secret="xxxxxxxxxxxxxxxxxxxxxxxxx"
 multidns = [
     {Type="AAAA", RR="client", Domain="example.com"},
 ]
-
