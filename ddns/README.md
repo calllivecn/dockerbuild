@@ -13,7 +13,7 @@
 - 客户端运行 `ddnsclient`，定时获取本机 IPv6 地址并发送给服务端。
 - 服务端验证请求后，更新该客户端对应的阿里云 AAAA 记录。
 - 一个服务端可以通过不同的 `ClientID` 管理多个客户端。
-- 客户端使用统一的 `Address` URL：`udp://`、`http://` 或 `https://`。服务端则分别使用 `UDPAddress` 和 `Address` 配置 UDP 与 HTTP/HTTPS；两者默认端口均为 `2022`。
+- 客户端使用统一的 `Address` URL：`udp://`、`http://` 或 `https://`。服务端则分别使用 `UDPAddress` 和 `Address` 配置 UDP 与 HTTP/HTTPS；未写端口时，UDP 默认 `2022`，HTTP 默认 `80`，HTTPS 默认 `443`。
 
 服务端配置模板见 `ddns.toml.md`，客户端配置模板见 `ddnsclient.toml.md`。服务端的 `Clients[].ClientID` 必须与客户端的 `ClientId` 对应，客户端需要同时配置客户端 `Secret` 和服务端 `ServerSecret`。
 
@@ -34,19 +34,19 @@ systemd 用户服务使用 `ddns.service` 和 `ddnsclient.service`。服务端�
 
 ```toml
 UDPAddress="udp://[::]:2022"
-Address="http://[::]:2022"
+Address="http://[::]"
 ```
 
-HTTP 适合放在 Nginx 等反向代理之后；将 `Address` 改为 `https://[::]:2022` 时还需要配置 `CertFile` 和 `KeyFile`。UDP 与 HTTP/HTTPS 使用同一个端口号 `2022`，但分别是 UDP 和 TCP 监听。
+HTTP 适合放在 Nginx 等反向代理之后；将 `Address` 改为 `https://[::]` 时还需要配置 `CertFile` 和 `KeyFile`。UDP 使用 UDP `2022`，HTTP/HTTPS 未写端口时分别使用 TCP `80`/`443`。
 
 Python 客户端在 `ddnsclient.toml` 中设置：
 
 ```toml
-Address="http://example.com:2022/api/v1/update"
+Address="http://example.com/api/v1/update"
 VerifyTLS=true
 ```
 
-HTTP/HTTPS 请求使用客户端密钥进行 HMAC-SHA256 签名，签名原文严格为 `ClientID\nUnix时间戳\nIP地址`。Bash 客户端依赖 `curl`、`openssl` 和 `awk`，配置模板见 `ddnsclient.conf.md`，启动方式为：
+Python 客户端使用启用 HTTP/2 的 `httpx` 发送 HTTP/HTTPS 请求；请求使用客户端密钥进行 HMAC-SHA256 签名，签名原文严格为 `ClientID\nUnix时间戳\nIP地址`。Bash 客户端依赖 `curl`、`openssl` 和 `awk`，配置模板见 `ddnsclient.conf.md`，启动方式为：
 
 ```shell
 ./ddnsclient.sh /path/to/ddnsclient.conf

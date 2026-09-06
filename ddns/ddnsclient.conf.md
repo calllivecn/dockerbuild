@@ -1,6 +1,6 @@
 # ddnsclient.sh 配置
 # 统一地址，可填写 http:// 或 https:// URL
-Address="http://example.com:2022/api/v1/update"
+Address="http://example.com/api/v1/update"
 CLIENT_ID=1234
 CLIENT_SECRET="xxxxxxxxxxxxxxxxxxxxxxxxx"
 INTERVAL=180

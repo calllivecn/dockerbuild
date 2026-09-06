@@ -21,9 +21,9 @@ multidns = [
 
 
 [Server]
-# UDP 和 HTTP/TCP 分别配置；默认端口均为 2022
+# UDP 和 HTTP/TCP 分别配置；未写端口时，UDP 默认 2022、HTTP 默认 80、HTTPS 默认 443
 UDPAddress="udp://[::]:2022"
-Address="http://[::]:2022"
+Address="http://[::]"
 # server 的 secret
 Secret="xxxxxxxxxxxxxxxxxxxxxxxxx"
 # Address 使用 https:// 时需要配置证书

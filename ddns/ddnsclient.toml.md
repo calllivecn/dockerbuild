@@ -1,6 +1,6 @@
 [Client]
-# 统一地址: udp://、http:// 或 https://；默认 TCP 端口为 2022
-Address="http://example.com:2022/api/v1/update"
+# 统一地址: udp://、http:// 或 https://；未写端口时使用协议默认端口
+Address="http://example.com/api/v1/update"
 
 # 检查间隔时间单位秒
 Interval=180

@@ -26,9 +26,11 @@ if [[ ! "$Address" =~ ^https?:// ]]; then
     exit 1
 fi
 
-# HTTP(S) 未写端口时使用项目默认 TCP 端口 2022。
+# HTTP 未写端口时使用 80，HTTPS 未写端口时使用 443。
 if [[ "$Address" =~ ^(https?)://(\[[^]]+\]|[^/:]+)(/.*)?$ ]]; then
-    Address="${BASH_REMATCH[1]}://${BASH_REMATCH[2]}:2022${BASH_REMATCH[3]:-}"
+    default_port=80
+    [[ "${BASH_REMATCH[1]}" == "https" ]] && default_port=443
+    Address="${BASH_REMATCH[1]}://${BASH_REMATCH[2]}:${default_port}${BASH_REMATCH[3]:-}"
 fi
 
 read -r -a IP_CMD_ARGS <<< "$IP_CMD"

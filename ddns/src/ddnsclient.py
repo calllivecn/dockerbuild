@@ -11,9 +11,8 @@ import logging
 import argparse
 import traceback
 import json
-import ssl
-import urllib.error
-import urllib.request
+
+import httpx
 
 from utils import (
     CFG,
@@ -117,25 +116,22 @@ def web_client(url: str, client_id: int, secret: str, retry: int, timeout: int, 
         "ip": ip,
         "signature": https_signature(client_id, timestamp, ip, secret),
     }
-    body = json.dumps(payload).encode("utf-8")
-    headers = {"Content-Type": "application/json"}
-    context = ssl.create_default_context() if verify_tls else ssl._create_unverified_context()
-
-    for i in range(1, retry + 1):
-        logger.info(f"HTTPS retry {i}/{retry}")
-        req = urllib.request.Request(url, data=body, headers=headers, method="POST")
-        try:
-            with urllib.request.urlopen(req, timeout=timeout, context=context) as response:
-                result = json.loads(response.read())
-            if result.get("ok"):
-                logger.info(f"Server: {url} HTTPS update ok: {result.get('message', '')}")
-            else:
-                logger.warning(f"Server rejected update: {result}")
-            return
-        except urllib.error.HTTPError as e:
-            logger.warning(f"HTTPS server returned HTTP {e.code}")
-        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
-            logger.warning(f"HTTPS request failed: {e}")
+    with httpx.Client(http2=True, verify=verify_tls, timeout=timeout) as http:
+        for i in range(1, retry + 1):
+            logger.info(f"HTTP retry {i}/{retry}")
+            try:
+                response = http.post(url, json=payload)
+                response.raise_for_status()
+                result = response.json()
+                if result.get("ok"):
+                    logger.info(f"Server: {url} HTTP update ok: {result.get('message', '')}")
+                else:
+                    logger.warning(f"Server rejected update: {result}")
+                return
+            except httpx.HTTPStatusError as e:
+                logger.warning(f"HTTP server returned HTTP {e.response.status_code}")
+            except (httpx.RequestError, json.JSONDecodeError) as e:
+                logger.warning(f"HTTP request failed: {e}")
 
 
 def main():

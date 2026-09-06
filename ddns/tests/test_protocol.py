@@ -32,8 +32,11 @@ class HttpsSignatureTests(unittest.TestCase):
 
     def test_address_scheme_and_default_port(self):
         scheme, host, port, _ = parse_address("http://[::1]")
-        self.assertEqual((scheme, host, port), ("http", "::1", 2022))
-        self.assertEqual(address_with_default_port("https://example.com/api"), "https://example.com:2022/api")
+        self.assertEqual((scheme, host, port), ("http", "::1", 80))
+        self.assertEqual(address_with_default_port("http://example.com/api"), "http://example.com:80/api")
+        scheme, host, port, _ = parse_address("https://example.com")
+        self.assertEqual((scheme, host, port), ("https", "example.com", 443))
+        self.assertEqual(address_with_default_port("https://example.com/api"), "https://example.com:443/api")
 
     def test_legacy_address_defaults_to_udp(self):
         scheme, host, port, _ = parse_address("ddns.example.com", default_port=2022)

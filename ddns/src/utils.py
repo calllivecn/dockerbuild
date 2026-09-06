@@ -48,7 +48,8 @@ def parse_address(address: str, default_scheme="udp", default_port=2022):
         raise ValueError("Address 缺少主机名")
 
     try:
-        port = parsed.port or default_port
+        protocol_port = {"http": 80, "https": 443}.get(parsed.scheme, default_port)
+        port = parsed.port or protocol_port
     except ValueError as e:
         raise ValueError(f"Address 端口无效: {address}") from e
 
@@ -56,7 +57,7 @@ def parse_address(address: str, default_scheme="udp", default_port=2022):
 
 
 def address_with_default_port(address: str, default_port=2022) -> str:
-    """为 HTTP(S) URL 补上默认 TCP 端口，避免客户端落到 80/443。"""
+    """为 URL 补上协议对应的默认端口。"""
     scheme, host, port, parsed = parse_address(address, default_scheme="http", default_port=default_port)
     if parsed.port:
         return address
