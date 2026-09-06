@@ -13,13 +13,23 @@ fi
 # shellcheck source=/dev/null
 source "$CONFIG"
 
-: "${URL:?缺少 URL}"
+: "${Address:?缺少 Address}"
 : "${CLIENT_ID:?缺少 CLIENT_ID}"
 : "${CLIENT_SECRET:?缺少 CLIENT_SECRET}"
 : "${INTERVAL:?缺少 INTERVAL}"
 : "${TIMEOUT:?缺少 TIMEOUT}"
 : "${RETRY:?缺少 RETRY}"
 : "${IP_CMD:?缺少 IP_CMD}"
+
+if [[ ! "$Address" =~ ^https?:// ]]; then
+    printf 'Bash 客户端的 Address 必须使用 http:// 或 https://\n' >&2
+    exit 1
+fi
+
+# HTTP(S) 未写端口时使用项目默认 TCP 端口 2022。
+if [[ "$Address" =~ ^(https?)://(\[[^]]+\]|[^/:]+)(/.*)?$ ]]; then
+    Address="${BASH_REMATCH[1]}://${BASH_REMATCH[2]}:2022${BASH_REMATCH[3]:-}"
+fi
 
 read -r -a IP_CMD_ARGS <<< "$IP_CMD"
 if [[ ${#IP_CMD_ARGS[@]} -eq 0 ]]; then
@@ -50,7 +60,7 @@ while true; do
     for ((i = 1; i <= RETRY; i++)); do
         printf 'HTTPS retry %d/%d\n' "$i" "$RETRY"
         if curl --fail --silent --show-error --max-time "$TIMEOUT" \
-            -H 'Content-Type: application/json' -d "$JSON" "$URL" >/dev/null; then
+            -H 'Content-Type: application/json' -d "$JSON" "$Address" >/dev/null; then
             success=true
             break
         fi

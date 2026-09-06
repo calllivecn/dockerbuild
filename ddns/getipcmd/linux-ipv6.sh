@@ -6,6 +6,5 @@ if [ "$iface"x = "lo"x ];then
 	exit 1
 fi
 
-ip -6 addr show "$iface" |awk '$0~/mngtmpaddr/{print $2}' |awk -F'/' '{print $1}'
-
+ip -6 addr show "$iface" |awk '$0~/mngtmpaddr/ && $0 !~/deprecated/{print $2}' |awk -F'/' '{print $1}'
 

@@ -8,7 +8,9 @@ sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 from utils import (  # noqa: E402
     DDNSPacketError,
     Request,
+    address_with_default_port,
     https_signature,
+    parse_address,
     verify_https_signature,
 )
 
@@ -27,6 +29,15 @@ class HttpsSignatureTests(unittest.TestCase):
         self.assertFalse(verify_https_signature(1234, 1700000001, "2001:db8::1", signature, "secret"))
         self.assertFalse(verify_https_signature(1234, 1700000000, "2001:db8::2", signature, "secret"))
         self.assertFalse(verify_https_signature(1234, 1700000000, "2001:db8::1", signature, "wrong"))
+
+    def test_address_scheme_and_default_port(self):
+        scheme, host, port, _ = parse_address("http://[::1]")
+        self.assertEqual((scheme, host, port), ("http", "::1", 2022))
+        self.assertEqual(address_with_default_port("https://example.com/api"), "https://example.com:2022/api")
+
+    def test_legacy_address_defaults_to_udp(self):
+        scheme, host, port, _ = parse_address("ddns.example.com", default_port=2022)
+        self.assertEqual((scheme, host, port), ("udp", "ddns.example.com", 2022))
 
 
 class UdpProtocolTests(unittest.TestCase):

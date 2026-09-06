@@ -25,6 +25,7 @@ from utils import (
     readcfg2,
     DDNSPacketError,
     verify_https_signature,
+    parse_address,
 )
 import logs
 from logs import logger
@@ -37,20 +38,13 @@ AccessKeyId="xxxxxxxxxxxxxxxxx"
 AccessKeySecret="xxxxxxxxxxxxxxxxx"
 
 [Server]
-Address="::"
-Port=2022
+# UDP 和 HTTP/TCP 分别配置；默认端口均为 2022
+UDPAddress="udp://[::]:2022"
+Address="http://[::]:2022"
 # server 的 secret
 Secret="xxxxxxxxxxxxxxxxxxxxxxxxx"
-
-[Http]
-Enabled=true
-Address="::"
-Port=8080
-
-[Https]
-Enabled=false
-Address="::"
-Port=8443
+CertFile="/path/to/server.crt"
+KeyFile="/path/to/server.key"
 CertFile="/path/to/server.crt"
 KeyFile="/path/to/server.key"
 
@@ -184,21 +178,52 @@ class Conf:
         self.ali_keysecret = Ali["AccessKeySecret"]
 
         Server = self.conf["Server"]
-        self.server_addr = Server["Address"]
-        self.server_port = Server["Port"]
+        raw_address = Server.get("Address", "")
+        raw_udp_address = Server.get("UDPAddress")
+        legacy_address = "://" not in raw_address
+        if raw_udp_address:
+            udp_scheme, self.server_addr, self.server_port, _ = parse_address(raw_udp_address)
+            if udp_scheme != "udp":
+                raise ValueError("Server.UDPAddress 必须使用 udp:// scheme")
+        else:
+            udp_scheme, self.server_addr, self.server_port, _ = parse_address(
+                raw_address, default_scheme="udp", default_port=Server.get("Port", 2022)
+            )
         self.server_secret = Server["Secret"]
 
+        # 新配置用 Server.Address 选择 API 协议；旧配置继续读取 [Http]/[Https]。
         http = self.conf.get("Http", {})
-        self.http_enabled = http.get("Enabled", True)
-        self.http_addr = http.get("Address", "::")
-        self.http_port = http.get("Port", 8080)
-
         https = self.conf.get("Https", {})
-        self.https_enabled = https.get("Enabled", False)
-        self.https_addr = https.get("Address", "::")
-        self.https_port = https.get("Port", 8443)
-        self.https_cert = https.get("CertFile", "")
-        self.https_key = https.get("KeyFile", "")
+        def legacy_api_address(section, scheme, default_port):
+            host = section.get("Address", "::")
+            host = f"[{host}]" if ":" in host and not host.startswith("[") else host
+            return parse_address(
+                f"{scheme}://{host}:{section.get('Port', default_port)}",
+                default_scheme=scheme,
+                default_port=default_port,
+            )
+
+        if raw_address and "://" in raw_address:
+            self.api_scheme, self.api_addr, self.api_port, _ = parse_address(raw_address)
+            if self.api_scheme not in ("http", "https"):
+                self.api_scheme = ""
+                self.api_addr = ""
+                self.api_port = 0
+        elif not raw_udp_address and legacy_address and https.get("Enabled", False):
+            self.api_scheme, self.api_addr, self.api_port, _ = legacy_api_address(https, "https", 8443)
+        elif not raw_udp_address and legacy_address and http.get("Enabled", False):
+            self.api_scheme, self.api_addr, self.api_port, _ = legacy_api_address(http, "http", 8080)
+        else:
+            self.api_scheme = ""
+            self.api_addr = ""
+            self.api_port = 0
+
+        self.http_enabled = self.api_scheme == "http"
+        self.https_enabled = self.api_scheme == "https"
+        self.https_addr = self.api_addr
+        self.https_port = self.api_port
+        self.https_cert = Server.get("CertFile", https.get("CertFile", ""))
+        self.https_key = Server.get("KeyFile", https.get("KeyFile", ""))
 
         # self.self_domain_name = self.conf["SelfDomainName"]
         # self.server_interval = self.self_domain_name["Interval"]
@@ -493,19 +518,19 @@ def main():
     conf = Conf()
     alidns = AliDDNS(conf.ali_keyid, conf.ali_keysecret)
 
-    if not conf.http_enabled and not conf.https_enabled:
-        parse.error("Http.Enabled 和 Https.Enabled 不能同时为 false")
-
     if conf.https_enabled:
         if not conf.https_cert or not conf.https_key:
-            parse.error("启用 HTTPS 时必须配置 Https.CertFile 和 Https.KeyFile")
+            parse.error("Address 使用 https 时必须配置 Server.CertFile 和 Server.KeyFile")
+
     Thread(target=server_worker, args=(conf,), daemon=True, name="Server").start()
-    app = create_api_app(conf, alidns)
+
     if conf.https_enabled:
-        app.run(host=conf.https_addr, port=conf.https_port, certfile=conf.https_cert, keyfile=conf.https_key, use_reloader=False)
+        create_api_app(conf, alidns).run(host=conf.api_addr, port=conf.api_port, certfile=conf.https_cert, keyfile=conf.https_key, use_reloader=False)
     elif conf.http_enabled:
-        app.run(host=conf.http_addr, port=conf.http_port, use_reloader=False)
-    return
+        create_api_app(conf, alidns).run(host=conf.api_addr, port=conf.api_port, use_reloader=False)
+    else:
+        server_worker(conf)
+
 
 if __name__ == '__main__':
     main()

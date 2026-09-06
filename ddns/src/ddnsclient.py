@@ -20,6 +20,8 @@ from utils import (
     readcfg2,
     Request,
     https_signature,
+    parse_address,
+    address_with_default_port,
 )
 from libnetlink import DefaultRouteIP
 import getipcmd
@@ -30,9 +32,8 @@ logger = logs.getlogger()
 
 CONF="""\
 [Client]
-# 服务端地址，可以是域名，或者ipv6 ipv4
-Address=""
-Port=2022
+# 服务端地址: udp://、http:// 或 https://
+Address="http://example.com:2022/api/v1/update"
 
 # 检查间隔时间单位秒
 Interval=180
@@ -52,10 +53,7 @@ TimeOut=10
 # 没有收到ACK时，重试次数
 Retry=3
 
-# 传输协议: udp、http 或 https，默认 http
-Protocol="http"
-# Protocol=http 或 https 时使用
-HttpUrl="http://example.com:8080/api/v1/update"
+# HTTPS 时是否校验证书；生产环境应保持 true
 VerifyTLS=true
 
 # 获取IP的命令行脚本
@@ -169,8 +167,8 @@ def main():
     cfg = readcfg2(CFG, CONF)
 
     c = cfg["Client"]
-    addr = c["Address"]
-    port = c["Port"]
+    raw_address = c["Address"]
+    protocol, addr, port, _ = parse_address(raw_address, default_scheme="udp", default_port=c.get("Port", 2022))
 
     interval = c["Interval"]
     clientid = c["ClientId"]
@@ -182,13 +180,7 @@ def main():
     retry = c["Retry"]
 
     cmd = c.get("Cmd")
-    protocol = c.get("Protocol", "http").lower()
-    http_url = c.get("HttpUrl")
-    if not http_url and protocol in ("http", "https"):
-        http_host = addr
-        if ":" in http_host and not http_host.startswith("["):
-            http_host = f"[{http_host}]"
-        http_url = f"{protocol}://{http_host}:8080/api/v1/update"
+    http_url = address_with_default_port(raw_address) if protocol in ("http", "https") else None
     verify_tls = c.get("VerifyTLS", True)
 
     while True:
@@ -221,7 +213,7 @@ def main():
         try:
             if protocol in ("http", "https"):
                 if not http_url:
-                    raise ValueError(f"Protocol={protocol} 时必须配置 HttpUrl")
+                    raise ValueError(f"Address={raw_address} 不是有效的 HTTP 地址")
                 web_client(http_url, clientid, secret, retry, timeout, ip, verify_tls if protocol == "https" else False)
             elif protocol == "udp":
                 client(addr, port, clientid, secret, server_secret, retry, timeout, ip)

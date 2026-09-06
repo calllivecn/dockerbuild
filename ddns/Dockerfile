@@ -8,4 +8,4 @@ RUN pip install --break-system-packages -r /requirements.txt || pip install -r /
 CMD ["python", "/ddns.py"]
 
 EXPOSE 2022/udp
-EXPOSE 8443/tcp
+EXPOSE 2022/tcp

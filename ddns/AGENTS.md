@@ -5,7 +5,7 @@
 - 这是面向 Linux 的 Python IPv6 DDNS 服务，服务端入口是 `src/ddns.py`，客户端入口是 `src/ddnsclient.py`；DNS 操作固定依赖阿里云 Alidns。
 - `src/utils.py` 用启动文件名推导配置路径：运行 `ddns`/`ddns.pyz` 时读取同目录的 `ddns.toml`，运行 `ddnsclient`/`ddnsclient.pyz` 时读取同目录的 `ddnsclient.toml`；不要仅按当前 shell 目录判断配置位置。
 - 服务端监听 IPv6 UDP（默认 `::`、端口 `2022`），客户端通过 UDP 发送带签名的地址更新请求；修改协议字段时需同时检查 `src/utils.py` 的打包、校验和 ACK 逻辑。
-- 服务端还可启动 Quart HTTP API（默认 `8080`）；`Https.Enabled=true` 时改为由 Quart 直接提供 TLS，UDP 始终保留，通常由前置 Nginx/Caddy 负责 HTTPS。
+- 客户端通过 `Address` URL 的 scheme 选择 `udp`、`http` 或 `https`；服务端用独立的 `UDPAddress` 配置 UDP，用 `Address` 配置 HTTP/HTTPS。HTTP/TCP 默认端口为 `2022`，HTTPS 配置证书后由 Quart 直接提供 TLS，通常由前置 Nginx/Caddy 负责 HTTPS。
 - `getipcmd/` 中的脚本是客户端可配置的取 IP 后端；`Cmd` 的第一个词必须是该目录中的文件名，后续词作为参数传递，不经过 shell，命令超时为 15 秒，IP 必须输出到 stdout。
 
 ## 依赖与构建

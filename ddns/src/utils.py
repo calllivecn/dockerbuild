@@ -15,6 +15,7 @@ import logging
 import ipaddress
 from pathlib import Path
 from dataclasses import dataclass
+from urllib.parse import urlsplit, urlunsplit
 
 try:
     import tomllib
@@ -33,6 +34,36 @@ PWD = PYZ_PATH.parent
 NAME, ext = os.path.splitext(PYZ_PATH.name)
 
 CFG = PWD / (NAME + ".toml")
+
+
+def parse_address(address: str, default_scheme="udp", default_port=2022):
+    """解析统一 Address URL，兼容旧配置中的无 scheme 主机名。"""
+    if "://" not in address:
+        address = f"{default_scheme}://{address}"
+
+    parsed = urlsplit(address)
+    if parsed.scheme not in ("udp", "http", "https"):
+        raise ValueError(f"不支持的 Address 协议: {parsed.scheme}")
+    if not parsed.hostname:
+        raise ValueError("Address 缺少主机名")
+
+    try:
+        port = parsed.port or default_port
+    except ValueError as e:
+        raise ValueError(f"Address 端口无效: {address}") from e
+
+    return parsed.scheme, parsed.hostname, port, parsed
+
+
+def address_with_default_port(address: str, default_port=2022) -> str:
+    """为 HTTP(S) URL 补上默认 TCP 端口，避免客户端落到 80/443。"""
+    scheme, host, port, parsed = parse_address(address, default_scheme="http", default_port=default_port)
+    if parsed.port:
+        return address
+
+    netloc = f"[{host}]" if ":" in host else host
+    netloc = f"{netloc}:{port}"
+    return urlunsplit((scheme, netloc, parsed.path, parsed.query, parsed.fragment))
 
 
 # 回环地址：127.0.0.0/8
@@ -246,4 +277,3 @@ def https_signature(client_id: int, timestamp: int, ip: str, secret: str) -> str
 def verify_https_signature(client_id: int, timestamp: int, ip: str, signature: str, secret: str) -> bool:
     expected = https_signature(client_id, timestamp, ip, secret)
     return hmac.compare_digest(expected, signature)
-
