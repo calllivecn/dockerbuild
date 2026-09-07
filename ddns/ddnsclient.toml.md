@@ -20,6 +20,9 @@ TimeOut=10
 # 没有收到ACK时，重试次数
 Retry=3
 
+# IP 未变化时，超过该小时数也重新上报
+ForceUpdateHours=6
+
 # 是否校验 HTTPS 服务器证书；生产环境应保持 true
 VerifyTLS=true
 

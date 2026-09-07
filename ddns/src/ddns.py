@@ -11,6 +11,7 @@ import pprint
 import logging
 import argparse
 import ipaddress
+import asyncio
 from threading import Thread
 
 from typing import Any
@@ -30,6 +31,8 @@ from utils import (
 import logs
 from logs import logger
 from quart import Quart, jsonify, request
+from hypercorn.asyncio import serve
+from hypercorn.config import Config as HypercornConfig
 
 CONF="""\
 [Ali]
@@ -43,8 +46,6 @@ UDPAddress="udp://[::]:2022"
 Address="http://[::]"
 # server 的 secret
 Secret="xxxxxxxxxxxxxxxxxxxxxxxxx"
-CertFile="/path/to/server.crt"
-KeyFile="/path/to/server.key"
 CertFile="/path/to/server.crt"
 KeyFile="/path/to/server.key"
 
@@ -292,7 +293,7 @@ class IPv6UDPServer:
                 return data, addr
         
         # 如果没有控制消息，直接返回数据和地址
-        return data, addr 
+        return data, addr
     
     def send(self, data: bytes, addr: tuple) -> int:
         return self.sock.sendmsg([data], [(self.cmsg_level, self.cmsg_type, self.pktinfo)], 0, addr)
@@ -439,6 +440,22 @@ def server_worker(conf: Conf):
             time.sleep(5)
 
 
+def api_worker(conf: Conf, alidns: AliDDNS, debug: bool):
+    async def shutdown_trigger():
+        await asyncio.Future()
+
+    config = HypercornConfig()
+    host = f"[{conf.api_addr}]" if ":" in conf.api_addr else conf.api_addr
+    config.bind = [f"{host}:{conf.api_port}"]
+    config.accesslog = "-" if debug else None
+    config.loglevel = "debug" if debug else "warning"
+    if conf.https_enabled:
+        config.certfile = conf.https_cert
+        config.keyfile = conf.https_key
+
+    asyncio.run(serve(create_api_app(conf, alidns), config, shutdown_trigger=shutdown_trigger))
+
+
 def create_api_app(conf: Conf, alidns: AliDDNS) -> Quart:
     app = Quart(__name__)
 
@@ -522,14 +539,17 @@ def main():
         if not conf.https_cert or not conf.https_key:
             parse.error("Address 使用 https 时必须配置 Server.CertFile 和 Server.KeyFile")
 
-    Thread(target=server_worker, args=(conf,), daemon=True, name="Server").start()
+    udp_thread = Thread(target=server_worker, args=(conf,), daemon=True, name="UDPServer")
+    udp_thread.start()
 
-    if conf.https_enabled:
-        create_api_app(conf, alidns).run(host=conf.api_addr, port=conf.api_port, certfile=conf.https_cert, keyfile=conf.https_key, use_reloader=False)
-    elif conf.http_enabled:
-        create_api_app(conf, alidns).run(host=conf.api_addr, port=conf.api_port, use_reloader=False)
-    else:
-        server_worker(conf)
+    api_thread = None
+    if conf.http_enabled or conf.https_enabled:
+        api_thread = Thread(target=api_worker, args=(conf, alidns, args.debug), daemon=True, name="HTTPServer")
+        api_thread.start()
+
+    udp_thread.join()
+    if api_thread:
+        api_thread.join()
 
 
 if __name__ == '__main__':

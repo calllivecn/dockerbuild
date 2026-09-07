@@ -52,6 +52,9 @@ TimeOut=10
 # 没有收到ACK时，重试次数
 Retry=3
 
+# IP 未变化时，超过该小时数也重新上报
+ForceUpdateHours=6
+
 # HTTPS 时是否校验证书；生产环境应保持 true
 VerifyTLS=true
 
@@ -101,11 +104,13 @@ def client(host: str, port: int, id: int, secret: str, server_secret: str, retry
         
         if req.verifyAck(data_ack, server_secret):
             logger.info(f"Server: {host} Addr: {c_addr[0]}  verify ACK ok")
-            break
+            sock.close()
+            return True
         else:
             logger.warning(f"{c_addr[0]}: 收到的回复验证不通过！可能正在被探测。")
     
     sock.close()
+    return False
 
 
 def web_client(url: str, client_id: int, secret: str, retry: int, timeout: int, ip: str, verify_tls: bool):
@@ -125,13 +130,24 @@ def web_client(url: str, client_id: int, secret: str, retry: int, timeout: int, 
                 result = response.json()
                 if result.get("ok"):
                     logger.info(f"Server: {url} HTTP update ok: {result.get('message', '')}")
+                    return True
                 else:
                     logger.warning(f"Server rejected update: {result}")
-                return
+                    return False
             except httpx.HTTPStatusError as e:
                 logger.warning(f"HTTP server returned HTTP {e.response.status_code}")
             except (httpx.RequestError, json.JSONDecodeError) as e:
                 logger.warning(f"HTTP request failed: {e}")
+    return False
+
+
+def should_update(current_ip: str, cached_ip: str | None, sent_ip: str | None, last_request_time: float, now: float, force_seconds: float) -> bool:
+    return (
+        cached_ip is None
+        or current_ip != cached_ip
+        or current_ip != sent_ip
+        or now - last_request_time >= force_seconds
+    )
 
 
 def main():
@@ -174,10 +190,15 @@ def main():
 
     timeout = c["TimeOut"]
     retry = c["Retry"]
+    force_update_hours = c.get("ForceUpdateHours", 6)
+    force_update_seconds = force_update_hours * 3600
 
     cmd = c.get("Cmd")
     http_url = address_with_default_port(raw_address) if protocol in ("http", "https") else None
     verify_tls = c.get("VerifyTLS", True)
+    cached_ip = None
+    sent_ip = None
+    last_request_time = 0.0
 
     while True:
 
@@ -207,14 +228,25 @@ def main():
             logger.info("使用最后的 UDP connect 方法, 需要当前机器上有可使用的ipv6地址。")
 
         try:
+            now = time.monotonic()
+            update = should_update(ip, cached_ip, sent_ip, last_request_time, now, force_update_seconds)
+            cached_ip = ip
+            if not update:
+                logger.debug("IP 没有变化且未达到强制更新时间，不发送请求")
+                time.sleep(interval)
+                continue
+
             if protocol in ("http", "https"):
                 if not http_url:
                     raise ValueError(f"Address={raw_address} 不是有效的 HTTP 地址")
-                web_client(http_url, clientid, secret, retry, timeout, ip, verify_tls if protocol == "https" else False)
+                sent = web_client(http_url, clientid, secret, retry, timeout, ip, verify_tls if protocol == "https" else False)
             elif protocol == "udp":
-                client(addr, port, clientid, secret, server_secret, retry, timeout, ip)
+                sent = client(addr, port, clientid, secret, server_secret, retry, timeout, ip)
             else:
                 raise ValueError(f"不支持的协议: {protocol}")
+            if sent:
+                sent_ip = ip
+                last_request_time = time.monotonic()
         except Exception:
             logger.warning("有异常：")
             traceback.print_exc()

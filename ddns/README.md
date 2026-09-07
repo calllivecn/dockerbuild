@@ -1,6 +1,10 @@
 # DDNS
 
-目前只支持阿里云 DNS 和 IPv6 记录，运行在 Linux 或 Android Termux 环境。
+1. 目前默认配置下只支持阿里云 DNS + IPv6 记录。
+
+2. 可以自己编写获取ip的脚本, getipcmd/ 目录有参数实现。
+
+3. 运行在 Linux 或 Android Termux 环境。
 
 ## 使用方式
 
@@ -43,6 +47,7 @@ Python 客户端在 `ddnsclient.toml` 中设置：
 
 ```toml
 Address="http://example.com/api/v1/update"
+ForceUpdateHours=6
 VerifyTLS=true
 ```
 
@@ -78,6 +83,6 @@ rm -rf /tmp/ddns/
 
 ## 使用容器
 
-- `docker build -t ddns .`（也可使用 Podman）。
+- `podman build -t ddns .` (也可使用 docker)
 
 容器配置和启动路径应以当前 `Dockerfile` 为准；目前 Dockerfile 将 `src/` 内容复制到 `/`，但启动命令引用 `/src/ddns.py`，构建后启动前需要先核对这一处路径。

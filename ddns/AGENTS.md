@@ -10,7 +10,7 @@
 
 ## 依赖与构建
 
-- 运行依赖锁定在 `requirements.txt`，打包依赖为 `requirements-build.txt`；Python 客户端 HTTP 使用启用 HTTP/2 的 `httpx`；当前使用 Python 3.11+ 时由内置 `tomllib` 读取 TOML，旧版本才需要 `tomli`。
+- 运行依赖锁定在 `requirements.txt`，打包依赖为 `requirements-build.txt`；服务端 HTTP 使用 Quart + Hypercorn，Python 客户端 HTTP 使用启用 HTTP/2 的 `httpx`；当前使用 Python 3.11+ 时由内置 `tomllib` 读取 TOML，旧版本才需要 `tomli`。
 - PyInstaller 的正式打包入口是根目录的 `build.spec`：在安装两份 requirements 后运行 `pyinstaller build.spec`，产物为 `dist/ddns/`，其中包含 `ddns` 和 `ddnsclient` 两个可执行文件。
 - 最小打包流程：`python -m venv /tmp/ddns && . /tmp/ddns/bin/activate && pip install -r requirements.txt && pip install -r requirements-build.txt && pyinstaller build.spec`。
 - Docker 构建命令是 `docker build -t ddns .`（也可使用 Podman）；Dockerfile 将 `src/` 内容复制到 `/`，容器入口是 `/ddns.py`，并使用 TCP/UDP `2022` 端口。
