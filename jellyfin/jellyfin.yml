@@ -4,7 +4,7 @@ version: "3"
 
 services:
   jellyfin:
-    #image: docker.io/jellyfin/jellyfin:2025120105
+    #image: ghcr.io/jellyfin/jellyfin:latest
     image: localhost/jellyfin:latest
     container_name: jellyfin
     user: ${UID}:${GROUPS}
@@ -16,7 +16,8 @@ services:
       - ${HOME}/.containers/jellyfin/config:/config
       - ${HOME}/.volumes/jellyfin/cache:/cache
       - ${HOME}/video:/media
-      - /mnt/data/aliyundrive-videos/:/media2
+      #- ${HOME}/aliyundrive-videos/:/media2
+      #- /mnt/data/aliyundrive-videos/:/media2
         #- /usr/lib/x86_64-linux-gnu/dri/iHD_drv_video.so:/usr/lib/x86_64-linux-gnu/dri/iHD_drv_video.so
         #- /usr/share/fonts/:/usr/local/share/fonts:ro
         #- /usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc:/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc:ro
