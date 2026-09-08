@@ -44,8 +44,11 @@ RTM_DELADDR = 21 # netlink消息类型：接口删除ip地址
 
 IFLA_IFNAME = 3 # 接口属性类型：名称
 
-IFA_F_TENTATIVE = 0x40 # 接口标志：tentative; tentative表示地址还在进行重复地址检测（DAD）
 
+IFA_F_DEPRECATED = 0x20 # 地址已弃用（不再用于新连接）
+IFA_F_TENTATIVE = 0x40 # 接口标志：tentative; tentative表示地址还在进行重复地址检测（DAD）
+IFA_F_PERMANENT	= 0x80 # 静态配置地址（非动态）
+IFA_F_MANAGETEMPADDR  = 0x100 # 由管理临时地址生成的地址
 
 
 class NetLink:
@@ -160,6 +163,7 @@ class DefaultRouteIP:
     获取默认路由的出口ip地址。
     """
 
+    IFA_F_DEPRECATED = 0x20
     IFA_F_TENTATIVE     = 0x40
     IFA_F_PERMANENT     = 0x80
     IFA_F_MANAGETEMPADDR= 0x100
@@ -217,12 +221,13 @@ class DefaultRouteIP:
             is_mngtmpaddr = bool(flags & self.IFA_F_MANAGETEMPADDR)
             is_tentative = bool(flags & self.IFA_F_TENTATIVE)
             is_permanent = bool(flags & self.IFA_F_PERMANENT)
+            is_deprecated = bool(flags & self.IFA_F_DEPRECATED)
 
             if is_tentative:
                 logger.warning(f"地址 {ipv6} 是 tentative 状态，可能正在进行重复地址检测（DAD）。稍后在试。")
                 continue
 
-            if is_mngtmpaddr:
+            if is_mngtmpaddr and not is_deprecated:
                 ok = True
                 return ipv6
 
