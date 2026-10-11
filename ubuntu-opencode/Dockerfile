@@ -1,4 +1,4 @@
-FROM ubuntu-opencode-base:latest
+FROM opencode-base:latest
 
 ARG https_proxy
 

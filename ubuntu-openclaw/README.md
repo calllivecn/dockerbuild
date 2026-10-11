@@ -1,4 +1,4 @@
-# ubuntu-openclaw:latest 
+# openclaw:latest 
 
 - 下载node 包: https://nodejs.org/en/download/current
 
@@ -8,10 +8,10 @@
 ~~bash build.sh~~
 
 # 第一步
-podman build -f Dockerfile-base -t ubuntu-openclaw-base .
+podman build -f Dockerfile-base -t openclaw-base .
 
 # 第二步
-podman build -f Dockerfile-download --build-arg https_proxy="http://[fc03::1]:10003" -t ubuntu-openclaw .
+podman build -f Dockerfile --build-arg https_proxy="http://[fc03::1]:10000" -t openclaw .
 ```
 
 
@@ -21,3 +21,4 @@ podman build -f Dockerfile-download --build-arg https_proxy="http://[fc03::1]:10
 
 
 - 之后就可以正常启动了: podman-compsoe or podman run 等
+

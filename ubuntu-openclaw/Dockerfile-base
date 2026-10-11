@@ -1,14 +1,15 @@
 FROM ubuntu-devel:latest
 
-ARG node_version=v24.14.1
+#ARG node_version=v24.14.1
+ARG node_version=v26.8.2
 
 ADD node-${node_version}-linux-x64.tar.xz /usr/local/
 
 RUN apt -y update \
-&& apt -y install tmux ffmpeg vim \
+&& apt -y install tmux ffmpeg vim python3 python3-pip \
 && cd /usr/local/node-${node_version}-linux-x64/ \
 && cp -av . /usr/local/ \
-&& npm cache verify \
-&& npm config -g set registry https://mirrors.tuna.tsinghua.edu.cn/npm/ \
-&& npm config -g get registry
+&& npm cache verify
+#&& npm config -g set registry https://mirrors.tuna.tsinghua.edu.cn/npm/ \
+#&& npm config -g get registry
 

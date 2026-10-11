@@ -3,7 +3,7 @@ version: "3"
 services:
   openclaw:
     #image: ghcr.io/openclaw/openclaw:latest
-    image: ubuntu-openclaw:latest
+    image: openclaw:latest
     container_name: openclaw
     restart: unless-stopped
     #restart: always
