@@ -4,7 +4,8 @@ ARG https_proxy PYTHON_VERSION=3.14
 
 ENV PATH=/root/.local/bin:$PATH
 
-RUN curl -fsSL https://opencode.ai/install | bash \
+#RUN curl -fsSL https://opencode.ai/install | bash \
+RUN curl -fsSL https://opencode.ai/v2/install | bash \
 && curl -LsSf https://astral.sh/uv/install.sh | bash \
 && mkdir -vp ~/.config/uv/ \
 && echo '[[index]]' > ~/.config/uv/uv.toml \

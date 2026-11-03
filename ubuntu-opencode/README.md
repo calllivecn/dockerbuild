@@ -1,4 +1,4 @@
-# ubuntu-opencode:latest 
+# opencode:latest 
 
 
 ## build
